@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>AI Fighters</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="app">
+  <div id="stage"><canvas id="game" width="384" height="216"></canvas><div class="tag">@SamTalksAI</div></div>
+  <div id="controls">
+    <div id="dpad" aria-label="D-pad">
+      <i class="u"></i><i class="l"></i><i class="r"></i><i class="d"></i>
+    </div>
+    <div id="actions">
+      <button class="act" data-k="special" id="btn-special">SP</button>
+      <button class="act" data-k="block" id="btn-block">BLK</button>
+      <button class="act" data-k="kick" id="btn-kick">KICK</button>
+      <button class="act" data-k="punch" id="btn-punch">PUNCH</button>
+    </div>
+  </div>
+
+  <div class="screen on" id="scr-title">
+    <h1>AI Fighters</h1>
+    <button class="big" id="btn-start">&#9654; START</button>
+    <p class="hint">Keys: arrows/WASD move, J punch, K kick, L block, I special, M sound</p>
+    <p class="disclaimer">A parody game. Not affiliated with any real person or company.</p>
+  </div>
+
+  <div class="screen" id="scr-select">
+    <h2>Choose your fighter</h2>
+    <div id="cards"></div>
+    <p class="hint">CPU takes the other one.</p>
+  </div>
+
+  <div class="screen" id="scr-over">
+    <h2 id="over-title">Winner!</h2>
+    <p id="over-sub"></p>
+    <button class="big" id="btn-replay">REPLAY</button>
+    <button class="small" id="btn-change">Change fighter</button>
+  </div>
+
+  <div id="tag">@SamTalksAI</div>
+  <button id="btn-mute" aria-label="Toggle sound">SOUND ON</button>
+</div>
+<script src="img/portraits/portraits.js"></script>
+<script src="img/sprites/musk/sprite.js"></script>
+<script src="img/sprites/zuck/sprite.js"></script>
+<script>if (location.protocol === 'file:') document.write('<script src="js/art.js"><\/script>'); // data-URI art for file:// (untainted canvas)</script>
+<script src="js/heads.js"></script>
+<script src="js/fighters.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/sprites.js"></script>
+<script src="js/stage.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/ai.js"></script>
+<script src="js/input.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,69 @@
+/* AI Fighters - 8-bit look. Font: Press Start 2P (OFL, bundled in fonts/). Colours from the NES-style palette. */
+@font-face{font-family:"Press Start 2P";src:url("../fonts/PressStart2P-Regular.ttf") format("truetype");font-display:swap}
+:root{--blk:#000;--wht:#fcfcfc;--yel:#f8b800;--org:#e45c10;--red:#e40058;--blu:#0000bc;--vio:#4428bc;--cyn:#00e8d8;--gry:#7c7c7c}
+html,body{margin:0;height:100%;background:var(--blk);overflow:hidden;color:var(--wht);
+  font-family:"Press Start 2P",ui-monospace,monospace;line-height:1.6;
+  touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;
+  overscroll-behavior:none;-webkit-tap-highlight-color:transparent}
+#app{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+#stage{position:relative;flex:none;border:0}
+#game{display:block;width:100%;height:100%;background:var(--blk);image-rendering:crisp-edges;image-rendering:pixelated}
+canvas{image-rendering:crisp-edges;image-rendering:pixelated}
+.tag{position:absolute;right:4px;bottom:3px;font-size:8px;opacity:.5;pointer-events:none;color:var(--wht)}
+
+.screen{position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;
+  gap:14px;padding:16px;box-sizing:border-box;text-align:center;z-index:10;
+  background:var(--blk) repeating-linear-gradient(0deg,#0000 0 3px,#4428bc22 3px 4px)}
+.screen.on{display:flex}
+.screen::before{content:"";position:absolute;inset:10px;border:4px solid var(--vio);outline:4px solid var(--blu);outline-offset:4px;pointer-events:none}
+h1{font-size:clamp(22px,7vw,56px);margin:0;font-weight:400;color:var(--yel);text-shadow:4px 4px 0 var(--red),8px 8px 0 var(--blu);letter-spacing:1px}
+h2{margin:0;font-weight:400;font-size:clamp(13px,3.6vw,24px);color:var(--yel);text-shadow:3px 3px 0 var(--red)}
+p{margin:0}
+button{font:inherit;cursor:pointer;border-radius:0;touch-action:manipulation;color:var(--wht)}
+.big{font-size:16px;padding:14px 24px;background:var(--org);border:4px solid var(--wht);box-shadow:6px 6px 0 var(--blk),6px 6px 0 4px var(--red)}
+.big:active,.small:active{transform:translate(4px,4px);box-shadow:none}
+.big:focus-visible,.small:focus-visible,.card:focus-visible{outline:4px dashed var(--yel);outline-offset:4px}
+.small{font-size:10px;background:var(--blu);padding:10px 16px;border:4px solid var(--wht);box-shadow:4px 4px 0 var(--vio)}
+.hint{font-size:8px;color:var(--cyn);max-width:520px}
+.disclaimer{font-size:9px;color:var(--wht);max-width:440px;margin-top:6px;padding:8px;border:2px dashed var(--gry)}
+#over-title{font-size:clamp(14px,4vw,28px)}
+#over-sub{font-size:10px;color:var(--cyn)}
+
+#cards{display:flex;gap:16px;flex-wrap:wrap;justify-content:center}
+.card{background:#000;border:4px solid var(--wht);padding:10px 8px;width:160px;text-align:center;box-shadow:6px 6px 0 var(--vio);font-size:8px}
+.card:hover,.card:focus{border-color:var(--yel);background:#24188c}
+.card canvas{width:144px;height:123px;image-rendering:pixelated;display:block;margin:0 auto 6px;background:#0000}
+.card b{display:block;font-size:10px;font-weight:400;color:var(--yel);margin-bottom:4px}
+.card small{display:block;font-size:7px;color:var(--wht);margin-top:4px;line-height:1.5}
+
+#tag{position:fixed;right:10px;bottom:8px;font-size:7px;opacity:.6;z-index:20;pointer-events:none}
+body.fighting #tag{display:none}
+#btn-mute{position:fixed;top:6px;right:6px;z-index:30;font-size:7px;padding:5px 6px;background:var(--blk);border:2px solid var(--gry);opacity:.85}
+body.fighting #btn-mute{top:auto;bottom:6px;right:50%;transform:translateX(50%)}
+
+/* touch controls: NES-pad style */
+#controls{display:none;width:100%;box-sizing:border-box;justify-content:space-between;align-items:center;padding:12px 18px}
+body.touch #controls{display:flex;flex:none;height:230px;max-width:520px;margin-top:24px}
+#dpad{position:relative;width:150px;height:150px;touch-action:none;
+  background:linear-gradient(var(--gry),var(--gry)) center/34% 100% no-repeat,linear-gradient(var(--gry),var(--gry)) center/100% 34% no-repeat;
+  filter:drop-shadow(4px 4px 0 var(--blk)) drop-shadow(0 0 0 var(--wht))}
+#dpad::after{content:"";position:absolute;left:33%;top:33%;width:34%;height:34%;background:#545454}
+#dpad i{position:absolute;width:0;height:0;border:9px solid transparent;pointer-events:none}
+#dpad .u{top:8%;left:50%;margin-left:-9px;border-bottom:12px solid var(--wht);border-top:0}
+#dpad .d{bottom:8%;left:50%;margin-left:-9px;border-top:12px solid var(--wht);border-bottom:0}
+#dpad .l{left:8%;top:50%;margin-top:-9px;border-right:12px solid var(--wht);border-left:0}
+#dpad .r{right:8%;top:50%;margin-top:-9px;border-left:12px solid var(--wht);border-right:0}
+#dpad.on{background:linear-gradient(var(--wht),var(--wht)) center/34% 100% no-repeat,linear-gradient(var(--wht),var(--wht)) center/100% 34% no-repeat}
+#actions{display:grid;grid-template-columns:repeat(2,68px);grid-template-rows:repeat(2,68px);gap:12px}
+.act{width:68px;height:68px;font-size:9px;touch-action:none;border:4px solid var(--wht);box-shadow:4px 4px 0 var(--blk)}
+.act.on{transform:translate(3px,3px);box-shadow:none;filter:brightness(1.4)}
+#btn-punch{background:var(--org)}#btn-kick{background:#0058f8}#btn-block{background:#00a800}#btn-special{background:#940084}
+
+/* landscape phones: controls overlay the game */
+@media (orientation:landscape){
+  body.touch #controls{position:fixed;left:0;right:0;bottom:0;padding:10px 24px;pointer-events:none;flex:none;max-width:none;height:auto;margin:0}
+  body.touch #controls > *{pointer-events:auto;opacity:.82}
+  body.touch #dpad{width:130px;height:130px}
+  body.touch #actions{grid-template-columns:repeat(2,56px);grid-template-rows:repeat(2,56px);gap:10px}
+  body.touch .act{width:56px;height:56px;font-size:8px}
+}
