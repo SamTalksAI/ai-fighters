@@ -44,6 +44,7 @@
   A.FIGHTERS = [
     {
       id: 'musk', name: 'Elon Musk', bio: 'Rocket guy. Posts at 3am.',
+      intro: { tagline: 'Next stop: Mars. First stop: your face.' }, // intro cinematic subtitle (optional)
       stats: { hp: 100, speed: 4.4, jump: 15.5, power: 1.0 },
       special: {
         name: 'Mars Rocket', frames: 40, fireAt: 14, cooldown: 150, aiRange: [180, 2000],
@@ -58,6 +59,7 @@
         legend: Object.assign({ r: '#d82800', x: '#c8c8d0', R: '#d82800', g: '#a0a0b0', b: '#3c5c9c', c: '#78c8f8', F: '#f8b800', f: '#f83800' }, P.musk.headLegend),
         // image-generator art (img/): one PNG per pose + per-fighter pose remaps; procedural body below is the fallback
         images: A.SPRITES.musk, imageMap: { spWind: 'special', spLaunch: 'punch' },
+        anchors: { kneelEye: [13, -50] }, // eye in kneel.png (low-res px from the feet): where the defeat tears spurt from
         portrait: A.PORTRAIT_ART.musk,
         build: { thigh: 24, shin: 23, upper: 15, fore: 14, rThigh: [7, 5], rShin: [5, 3.6], calf: 1, rUpper: [4.6, 3.4], bicep: 1.5,
           rFore: [4, 3], forearm: 1, fist: 3.8, delt: 6.2, sleeve: 5.2, sleeveLen: 0.5, shoulder: 14, chest: 10.5, waist: 7, seat: 7.4,
@@ -80,6 +82,7 @@
     },
     {
       id: 'zuck', name: 'Mark Zuckerberg', bio: 'Jiu-jitsu enjoyer. Loves a metaverse.',
+      intro: { tagline: 'Blue belt in the metaverse.' },
       stats: { hp: 100, speed: 4.0, jump: 14.5, power: 1.1 },
       special: {
         name: 'Jiu-Jitsu Throw', frames: 40, fireAt: 8, cooldown: 150, aiRange: [0, 150],
@@ -94,6 +97,7 @@
         },
         legend: P.zuck.headLegend,
         images: A.SPRITES.zuck, imageMap: { spGrab: 'grab', spHeave: 'heave' },
+        anchors: { kneelEye: [17, -49] },
         portrait: A.PORTRAIT_ART.zuck,
         build: { thigh: 24, shin: 23, upper: 15, fore: 14, rThigh: [6.6, 4.8], rShin: [4.8, 3.5], calf: 0.9, rUpper: [4.3, 3.2], bicep: 1.3,
           rFore: [3.8, 2.9], forearm: 0.9, fist: 3.6, delt: 5.8, sleeve: 5, sleeveLen: 0.48, shoulder: 13, chest: 10, waist: 6.8, seat: 7.2,

@@ -12,7 +12,8 @@
     KeyL: 'block', KeyC: 'block', KeyI: 'special', KeyV: 'special',
   };
   A.input = state;
-  addEventListener('keydown', (e) => { const k = KEYS[e.code]; if (k) { press(k); e.preventDefault(); } });
+  A.clearInput = () => { for (const k in state) { state[k] = false; latch[k] = false; } };
+  addEventListener('keydown', (e) => { const k = KEYS[e.code]; if (k) { e.preventDefault(); if (!(A.app && A.app.paused)) press(k); } });
   addEventListener('keyup', (e) => { const k = KEYS[e.code]; if (k) state[k] = false; });
   addEventListener('blur', () => Object.keys(state).forEach((k) => (state[k] = false)));
 

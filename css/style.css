@@ -1,5 +1,7 @@
 /* AI Fighters - 8-bit look. Font: Press Start 2P (OFL, bundled in fonts/). Colours from the NES-style palette. */
 @font-face{font-family:"Press Start 2P";src:url("../fonts/PressStart2P-Regular.ttf") format("truetype");font-display:swap}
+/* intro cinematic title type: Bebas Neue (OFL, bundled in fonts/, see fonts/BebasNeue-OFL.txt) */
+@font-face{font-family:"Bebas Neue";src:url("../fonts/BebasNeue-Regular.ttf") format("truetype");font-display:swap}
 :root{--blk:#000;--wht:#fcfcfc;--yel:#f8b800;--org:#e45c10;--red:#e40058;--blu:#0000bc;--vio:#4428bc;--cyn:#00e8d8;--gry:#7c7c7c}
 html,body{margin:0;height:100%;background:var(--blk);overflow:hidden;color:var(--wht);
   font-family:"Press Start 2P",ui-monospace,monospace;line-height:1.6;
@@ -26,6 +28,11 @@ button{font:inherit;cursor:pointer;border-radius:0;touch-action:manipulation;col
 .small{font-size:10px;background:var(--blu);padding:10px 16px;border:4px solid var(--wht);box-shadow:4px 4px 0 var(--vio)}
 .hint{font-size:8px;color:var(--cyn);max-width:520px}
 .disclaimer{font-size:9px;color:var(--wht);max-width:440px;margin-top:6px;padding:8px;border:2px dashed var(--gry)}
+.credit{font-size:11px;color:var(--wht);line-height:1.6;position:relative;z-index:1}
+.credit a{color:var(--yel);text-decoration:underline;text-underline-offset:3px;padding:6px 2px;touch-action:manipulation}
+.credit a:hover,.credit a:focus-visible{color:var(--cyn);outline:none}
+.credit.sm{font-size:8px;opacity:.85}
+@media (max-height:420px){#scr-title{gap:8px}#scr-title h1{font-size:clamp(22px,6vh,40px)}.big{padding:10px 20px}.disclaimer{margin-top:0;padding:5px}}
 #over-title{font-size:clamp(14px,4vw,28px)}
 #over-sub{font-size:10px;color:var(--cyn)}
 
@@ -67,3 +74,23 @@ body.touch #controls{display:flex;flex:none;height:230px;max-width:520px;margin-
   body.touch #actions{grid-template-columns:repeat(2,56px);grid-template-rows:repeat(2,56px);gap:10px}
   body.touch .act{width:56px;height:56px;font-size:8px}
 }
+
+/* pause button: under the round timer, between the win pips (clear of the health bars and the credit) */
+#btn-pause{display:none;position:absolute;left:50%;top:12.4%;transform:translateX(-50%);width:6%;height:8%;min-width:26px;min-height:20px;
+  z-index:15;padding:0;font-size:clamp(7px,1.6vw,12px);letter-spacing:-1px;background:#100818;border:2px solid var(--yel);
+  box-shadow:2px 2px 0 var(--blk);color:var(--wht);opacity:.85;touch-action:manipulation}
+body.fighting #btn-pause{display:block}
+body.paused #btn-pause,body.cine #btn-pause{display:none}
+#btn-pause:active{transform:translate(-50%,2px);box-shadow:none}
+/* pause overlay: retro box over the frozen fight */
+#pause{display:none;position:absolute;inset:0;z-index:25;align-items:center;justify-content:center;
+  background:#000a repeating-linear-gradient(0deg,#0000 0 3px,#0006 3px 4px)}
+#pause.on{display:flex}
+#pause .pbox{display:flex;flex-direction:column;align-items:stretch;gap:8px;padding:14px 18px;background:#100818;
+  border:4px solid var(--wht);outline:4px solid var(--vio);box-shadow:8px 8px 0 var(--blk)}
+#pause h3{margin:0 0 4px;font-weight:400;font-size:clamp(12px,3vw,20px);color:var(--yel);text-shadow:3px 3px 0 var(--red);text-align:center}
+.pbtn{font-size:clamp(8px,1.6vw,11px);padding:8px 14px 8px 22px;background:#0000;border:2px solid #0000;text-align:left;position:relative}
+.pbtn.sel{border-color:var(--yel);background:#24188c}
+.pbtn.sel::before{content:"";position:absolute;left:8px;top:50%;margin-top:-4px;border:4px solid transparent;border-left:6px solid var(--yel);border-right:0}
+.phint{font-size:7px;color:var(--gry);text-align:center;margin-top:4px}
+body.paused #controls{opacity:.25;pointer-events:none}

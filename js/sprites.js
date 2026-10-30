@@ -37,6 +37,8 @@
     fall: { hip: [0, -42], sh: [-24, -62], ff: [24, -34], fb: [16, -28], hf: [-12, -48], hb: [-38, -70], face: 'hurt' },
     lie: { hip: [4, -8], sh: [-28, -9], ff: [32, -12], fb: [27, -5], hf: [-16, -3], hb: [-40, -3], face: 'ko' },
     win: { hip: [0, -50], sh: [0, -82], ff: [9, -4], fb: [-9, -4], hf: [7, -118], hb: [-6, -55] },
+    // defeat: kneeling on the heels, fists at the eyes (procedural fallback; image fighters supply kneel.png)
+    kneel: { hip: [-8, -14], sh: [-2, -45], ff: [-22, -3], fb: [-26, -3], hf: [10, -52], hb: [6, -50], armsFront: true, face: 'hurt' },
   };
   A.POSES = POSES;
 
@@ -111,8 +113,9 @@
   function pickPose(f, g) {
     const sp = f.cfg.sprite, P = (n) => Object.assign({ name: n }, (sp.poses && sp.poses[n]) || POSES[n]);
     const s = f.state, t = f.anim, clk = g ? g.frame : 0, air = f.y < A.GROUND - 1;
-    if (g && (g.phase === 'ko' || g.phase === 'over') && g.f[g.roundWinner] === f && !air && g.phaseT < 125 &&
+    if (g && (g.phase === 'ko' || g.phase === 'over') && g.f[g.roundWinner] === f && !air && (g.endT != null ? g.endT > 25 : g.phaseT < 125) &&
       (s === 'idle' || s === 'walk' || s === 'crouch' || s === 'block')) return P('win');
+    if (A.isCrying(f, g)) return P('kneel');
     switch (s) {
       case 'walk': { let i = Math.floor(t / 7) % 4; if (f.vx * f.facing < 0) i = 3 - i; return P('walk' + i); }
       case 'jump': return P(f.vy < -3 ? 'jumpUp' : 'jump');
@@ -212,7 +215,7 @@
   // engine pose name -> image pose (2-frame idle / walk cycles; startup frames reuse idle)
   const IMG = { idle1: 'idle1', idle2: 'idle2', walk0: 'walkA', walk1: 'walkB', walk2: 'walkA', walk3: 'walkB',
     jump: 'jump', jumpUp: 'jump', crouch: 'crouch', block: 'block', punch0: 'idle1', punch1: 'punch', jpunch: 'punch',
-    kick0: 'idle1', kick1: 'kick', jkick: 'kick', hit: 'hit', fall: 'hit', lie: 'lie', win: 'win' };
+    kick0: 'idle1', kick1: 'kick', jkick: 'kick', hit: 'hit', fall: 'hit', lie: 'lie', win: 'win', kneel: 'kneel' };
   function imagePose(f, g) {
     const sp = f.cfg.sprite, I = sp.images; if (!I) return null;
     const P = pickPose(f, g), n = (sp.imageMap && sp.imageMap[P.name]) || IMG[P.name], m = n && I.poses[n];
@@ -232,6 +235,8 @@
     if (g) shadow(ctx, f, px);
     ctx.save(); ctx.translate(px * K, py * K); ctx.scale(f.facing * K, K);
     ctx.imageSmoothingEnabled = false;
+    const sob = A.cryT(f, g);
+    if (sob >= 0 && (sob % 36) < 20 && (sob >> 2) % 2) ctx.translate(0, K); // sobbing: shoulders heave in bursts
     if (ip) { // image sprite (art faces right; flipped by `facing`)
       if (ip.rot) { ctx.translate(0, -50); ctx.rotate(ip.rot * Math.PI / 2); ctx.translate(0, 50); }
       ctx.drawImage(ip.im, -ip.m[2], -ip.m[3]);
@@ -241,6 +246,60 @@
       ctx.drawImage(S.cv, -AX, -AY);
     }
     ctx.restore();
+  };
+
+  // ---- defeat animation: the round's loser kneels and cries comical cartoon tears ----
+  // frames the loser has been kneeling (-1 = not crying). A KO'd fighter lies on the floor first, then gets up to kneel.
+  A.cryT = function (f, g) {
+    if (!g || !(g.phase === 'ko' || g.phase === 'over') || !(g.roundWinner >= 0) || g.f[1 - g.roundWinner] !== f) return -1;
+    if (f.y < A.GROUND - 1) return -1;
+    const start = f.state === 'ko' || f.state === 'down' || f.state === 'thrown' ? 62 : 24;
+    return (g.endT || 0) >= start ? g.endT - start : -1;
+  };
+  A.isCrying = (f, g) => A.cryT(f, g) >= 0;
+  // shared procedural tears, drawn over the kneeling sprite: two arcing fountains spurting from the eye (one forward,
+  // one backward over the shoulder), drops raining down, and a puddle growing on the floor. Eye position comes from
+  // the fighter config: cfg.sprite.anchors.kneelEye = [x forward, y up (negative)] in low-res pixels from the feet.
+  const TEAR = ['#0078f8', '#3cbcfc', '#a4e4fc', '#fcfcfc'];
+  A.drawTears = function (ctx, f, g) {
+    const t = A.cryT(f, g); if (t < 0) return;
+    const K = A.S, dir = f.facing, sp = f.cfg.sprite, eye = (sp.anchors && sp.anchors.kneelEye) || [14, -50];
+    const bob = (t % 36) < 20 && (t >> 2) % 2 ? 1 : 0;
+    const ex = Math.round(f.x / K) + dir * eye[0], ey = Math.round(f.y / K) + eye[1] + bob, gy = Math.round(A.GROUND / K);
+    const dot = (x, y, c, w = 1, h = 1) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x) * K, Math.round(y) * K, w * K, h * K); };
+    const burst = (t % 36) < 24; // sobs come in bursts; tears gush hardest during a sob
+    const ramp = Math.min(1, t / 14), pw = ramp * (burst ? 1 : 0.7);
+    const head = Math.round(f.x / K);
+    // cheek streams
+    for (let k = 0; k < 4; k++) dot(ex - dir, ey + 1 + k, TEAR[k % 2 ? 1 : 2]);
+    // two big cartoon jets: one gushing forward, one arcing back over the shoulder. Each is a chain of drops along a
+    // parabola that scrolls outward every frame (so it reads as flowing water), ending in a splash and a puddle.
+    const jets = [[1.7, 1.9, 0.16], [-1.05, 2.3, 0.16]];
+    for (const [vx, vy, gr] of jets) {
+      const VX = vx * pw, VY = vy * pw;
+      if (VY <= 0) continue;
+      const land = (VY + Math.sqrt(VY * VY + 2 * gr * (gy - 1 - ey))) / gr; // u where the arc meets the floor
+      const len = burst ? land : land * 0.4; // between sobs only a short spurt
+      for (let u = (t * 0.8) % 1.6; u < len; u += 1.6) {
+        const x = ex + dir * VX * u, y = ey - VY * u + 0.5 * gr * u * u;
+        const thick = u < land * 0.55 ? 2 : 1;
+        dot(x, y + thick, TEAR[0], thick, 1); // dark underside so the stream reads on any background
+        dot(x, y, TEAR[1], thick, thick); dot(x, y, u < land * 0.6 ? TEAR[3] : TEAR[2]);
+      }
+      const lx = ex + dir * VX * land, pud = Math.min(14, 2 + t / 6);
+      if (burst && (t >> 1) % 2) { dot(lx - 2, gy - 3, TEAR[2]); dot(lx + 2, gy - 4, TEAR[2]); dot(lx, gy - 2, TEAR[3]); } // splash
+      dot(lx - pud / 2, gy, TEAR[1], Math.round(pud), 1); dot(lx - pud / 2 + 2, gy - 1, TEAR[2], Math.max(1, Math.round(pud) - 4), 1);
+    }
+    // fat drops dripping off the chin
+    for (let i = 0; i < 3; i++) {
+      const a = (t * 1.3 + i * 17) % 40, y = ey + 5 + a * a * 0.03;
+      if (y < gy - 2) { dot(ex, y, TEAR[1], 2, 2); dot(ex, y, TEAR[3]); }
+    }
+    void head;
+    // pixel "sob" marks above the head during a burst
+    if (burst && (t >> 3) % 2) {
+      dot(ex - dir * 8, ey - 14, TEAR[0]); dot(ex - dir * 9, ey - 16, TEAR[0]); dot(ex - dir * 3, ey - 15, TEAR[0]); dot(ex - dir * 3, ey - 17, TEAR[0]);
+    }
   };
 
   // small helper for props / projectiles drawn straight onto the game canvas (world coordinates)

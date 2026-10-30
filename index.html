@@ -5,12 +5,27 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>AI Fighters</title>
+<meta name="author" content="@SamTalksAI">
+<meta name="description" content="AI Fighters: a retro 8-bit parody fighting game. Created by @SamTalksAI.">
+<meta property="og:title" content="AI Fighters">
+<meta property="og:description" content="A retro 8-bit parody fighting game. Created by @SamTalksAI.">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:creator" content="@SamTalksAI">
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 <div id="app">
-  <div id="stage"><canvas id="game" width="384" height="216"></canvas><div class="tag">@SamTalksAI</div></div>
+  <div id="stage"><canvas id="game" width="384" height="216"></canvas><div class="tag">@SamTalksAI</div>
+    <button id="btn-pause" aria-label="Pause">II</button>
+    <div id="pause" role="dialog" aria-label="Paused">
+      <div class="pbox"><h3>PAUSED</h3>
+        <button class="pbtn" data-act="resume">RESUME</button>
+        <button class="pbtn" data-act="restart">RESTART</button>
+        <button class="pbtn" data-act="menu">MAIN MENU</button>
+        <p class="phint">ESC / P: RESUME</p></div>
+    </div></div>
   <div id="controls">
     <div id="dpad" aria-label="D-pad">
       <i class="u"></i><i class="l"></i><i class="r"></i><i class="d"></i>
@@ -26,7 +41,8 @@
   <div class="screen on" id="scr-title">
     <h1>AI Fighters</h1>
     <button class="big" id="btn-start">&#9654; START</button>
-    <p class="hint">Keys: arrows/WASD move, J punch, K kick, L block, I special, M sound</p>
+    <p class="credit" id="title-credit">Created by <a href="https://x.com/SamTalksAI" target="_blank" rel="noopener noreferrer">@SamTalksAI</a></p>
+    <p class="hint">Keys: arrows/WASD move, J punch, K kick, L block, I special, M sound, Esc/P pause</p>
     <p class="disclaimer">A parody game. Not affiliated with any real person or company.</p>
   </div>
 
@@ -41,6 +57,7 @@
     <p id="over-sub"></p>
     <button class="big" id="btn-replay">REPLAY</button>
     <button class="small" id="btn-change">Change fighter</button>
+    <p class="credit sm" id="over-credit">Game by <a href="https://x.com/SamTalksAI" target="_blank" rel="noopener noreferrer">@SamTalksAI</a></p>
   </div>
 
   <div id="tag">@SamTalksAI</div>

@@ -81,7 +81,7 @@
       const dx = (opp.x - this.x) * this.facing, ay = this.y + a.y;
       if (dx > 0 && dx < a.range + 28 && ay >= opp.bodyTop() && ay <= opp.y && !OUT.includes(opp.state)) {
         this.hasHit = true;
-        g.hit(opp, this.x, { damage: a.damage * this.cfg.stats.power, chip: a.chip, hitstun: a.hitstun, push: a.push, y: ay, sfx: a === ATK.kick ? 'kick' : 'punch' });
+        g.hit(opp, this.x, { attacker: this, damage: a.damage * this.cfg.stats.power, chip: a.chip, hitstun: a.hitstun, push: a.push, y: ay, sfx: a === ATK.kick ? 'kick' : 'punch' });
       }
     }
   }
@@ -97,7 +97,7 @@
       this.f[0].reset(260, 1); this.f[1].reset(700, -1);
       this.projectiles = []; this.fx = [];
       this.time = ROUND_SECS * 60; this.phase = 'intro'; this.phaseT = 90;
-      this.msg = 'ROUND ' + this.round; this.sub = '';
+      this.msg = 'ROUND ' + this.round; this.sub = ''; this.endT = 0; this.roundWinner = -1;
     }
     other(f) { return f === this.f[0] ? this.f[1] : this.f[0]; }
 
@@ -106,15 +106,26 @@
       if (this.phase !== 'fight' || OUT.includes(def.state)) return;
       const dir = Math.sign(def.x - fromX) || 1;
       const facingAttacker = def.facing === -dir;
-      if (def.blocking && facingAttacker && !o.unblockable) {
-        def.hp -= o.chip; def.setState('blockstun', 10); sfx('block'); def.vx = dir * o.push * 0.6;
+      const blocked = def.blocking && facingAttacker && !o.unblockable;
+      this.pushback(def, o.attacker, dir, o.push * (blocked ? 0.85 : 1));
+      if (blocked) {
+        def.hp -= o.chip; def.setState('blockstun', 10); sfx('block');
         this.fx.push({ x: def.x - dir * 25, y: o.y || def.y - 110, by: def.y, t: 0, col: '#3cbcfc', block: true });
       } else {
-        def.hp -= o.damage; def.setState('hit', o.hitstun); sfx(o.sfx || 'punch'); def.vx = dir * o.push;
+        def.hp -= o.damage; def.setState('hit', o.hitstun); sfx(o.sfx || 'punch');
         if (!def.grounded) def.vy = -4;
         this.fx.push({ x: def.x - dir * 20, y: o.y || def.y - 110, by: def.y, t: 0, col: '#f8b800' }); this.shake = 6;
       }
       this.checkKO(def, dir);
+    }
+    // pushback on hit / block: the defender slides away; when the defender is against the wall the ATTACKER
+    // takes the rest of the push (as in arcade fighters), so corner pressure cannot be held forever.
+    pushback(def, att, dir, push) {
+      def.vx = dir * push;
+      if (!att) return;
+      const slide = push / (1 - 0.82), room = dir > 0 ? W - 40 - def.x : def.x - 40; // friction 0.82 -> total slide
+      const rest = Math.max(0, slide - room) * (1 - 0.82);
+      if (rest > 0.2 && att.grounded) att.vx = -dir * Math.min(rest * 1.15, push * 1.15);
     }
     checkKO(def, dir) {
       if (def.hp <= 0) {
@@ -144,7 +155,8 @@
       const [a, b] = this.f, w = a.hp > b.hp ? 0 : b.hp > a.hp ? 1 : -1;
       if (w >= 0) this.wins[w]++;
       sfx('ko');
-      this.phase = 'ko'; this.phaseT = 150; this.roundWinner = w;
+      this.matchPoint = w >= 0 && this.wins[w] >= 2;
+      this.phase = 'ko'; this.phaseT = this.matchPoint ? 270 : 150; this.roundWinner = w; this.endT = 0;
       this.msg = kind === 'KO' ? 'K.O.!' : 'TIME!';
       this.sub = w >= 0 ? this.f[w].cfg.name + ' wins the round' : 'Draw';
     }
@@ -181,6 +193,7 @@
         this.projectiles = this.projectiles.filter((p) => !p.dead);
         if (--this.time <= 0 && this.phase === 'fight') this.endRound('TIME');
       } else if (this.phase === 'ko') {
+        this.endT++;
         a.update(blank, b, this); b.update(blank, a, this);
         if (--this.phaseT <= 0) {
           const champ = this.wins[0] >= 2 ? 0 : this.wins[1] >= 2 ? 1 : -1;
@@ -202,6 +215,7 @@
       // the fighter being hit / thrown is drawn first so the attacker's fist overlaps it
       const order = [...this.f].sort((p, q) => (p.state === 'punch' || p.state === 'kick' || p.state === 'special') - (q.state === 'punch' || q.state === 'kick' || q.state === 'special'));
       for (const f of order) A.drawFighter(ctx, f, this);
+      if (A.drawTears) for (const f of this.f) A.drawTears(ctx, f, this);
       for (const p of this.projectiles) p.draw(ctx, { ...p, y: vis(p.y, p.by) }, this.frame);
       for (const e of this.fx) {
         const y = vis(e.y, e.by);

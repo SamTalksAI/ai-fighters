@@ -6,7 +6,7 @@ A retro 2D arcade fighting game prototype in the browser: a parody of tech CEOs 
 
 ## Controls
 
-**Keyboard:** arrows/WASD move-jump-crouch, J punch, K kick, L block, I special, M mute
+**Keyboard:** arrows/WASD move-jump-crouch, J punch, K kick, L block, I special, M mute, P / Esc pause
 
 **Mobile:** on-screen D-pad and PUNCH/KICK/BLK/SP buttons
 
