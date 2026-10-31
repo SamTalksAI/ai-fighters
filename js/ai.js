@@ -2,7 +2,8 @@
 // range (footsies), waits, pokes with a cooldown between attacks, blocks a share of attacks it SEES coming
 // (perception is delayed by a reaction time), punishes whiffs, anti-airs jump-ins, uses its special at the
 // range given by the fighter config (special.aiRange) and backs off so the fight moves around the screen
-// instead of pinning the player in the corner. Difficulty ramps up with the round number.
+// instead of pinning the player in the corner. Difficulty ramps up with the round number and
+// scales with the chosen level (A.DIFFICULTY: EASY / NORMAL / HARD).
 // Fighter-agnostic: everything fighter-specific comes from cfg.stats / cfg.special in AIF.FIGHTERS.
 (function () {
   const A = window.AIF;
@@ -11,28 +12,58 @@
   const lerp = (a, b, t) => a + (b - a) * t;
   const ATTACK = ['punch', 'kick'];
 
+  // ---- difficulty levels (title-screen selector; NORMAL is the default) ----
+  // skill d (0..1) = base + (round - 1) * ramp, capped at max; it drives the lerps in tune(). On top of that:
+  //   react    extra reaction frames (slower to see attacks / jumps / projectiles)
+  //   block / punish / antiAir / aggro   multipliers on the block, whiff-punish, anti-air and attack-choice rates
+//   atkGap   multiplier on the cool-down between the CPU's own attacks (higher = fewer attacks)
+  //   combo    chance to follow a hit with a second one (little 2-hit strings)
+  //   superP / superHold   multipliers on how readily / how late the CPU fires a full meter
+  //   meter    CPU super-meter gain multiplier (on top of AIF.SUPER.cpu), applied by the engine (Game.cpuMeterMul)
+  //   rubber   discreet rubber-banding when the player is far behind (EASY/NORMAL only)
+  // HARD = the previous CPU (the old default) unchanged: skill 0.2 / 0.5 / 0.8 over rounds 1-3.
+  A.DIFFICULTY = {
+    easy:   { label: 'EASY',   base: 0,    ramp: 0.1,  max: 0.2,  react: 10, block: 0.45, punish: 0.3,  antiAir: 0.45, aggro: 0.7,  atkGap: 3.2, combo: 0.08, superP: 0.4, superHold: 2,   meter: 0.5, rubber: true },
+    normal: { label: 'NORMAL', base: 0.05, ramp: 0.15, max: 0.4,  react: 4,  block: 0.75, punish: 0.5,  antiAir: 0.75, aggro: 0.85, atkGap: 2.4, combo: 0.22, superP: 0.6, superHold: 1.3, meter: 0.7, rubber: true },
+    hard:   { label: 'HARD',   base: 0.2,  ramp: 0.3,  max: 0.9,  react: 0,  block: 1,    punish: 1,    antiAir: 1,    aggro: 1,    atkGap: 1,   combo: 0.35, superP: 1,   superHold: 1,   meter: 1,   rubber: false },
+  };
+  A.DIFF_ORDER = ['easy', 'normal', 'hard'];
+  A.DIFF_DEFAULT = 'normal';
+
   A.CPU = class {
-    constructor(level = 0.5) {
-      this.level = level; // 0..1 base skill; the round number adds on top (see tune)
+    // new A.CPU('easy' | 'normal' | 'hard'); a number (legacy, 0..1 base skill used by the sim tools) = the HARD profile
+    constructor(level = A.DIFF_DEFAULT) {
+      this.diff = typeof level === 'string' && A.DIFFICULTY[level] ? level : 'hard';
+      this.P = A.DIFFICULTY[this.diff];
       this.hist = []; this.mode = 'wait'; this.modeT = 30; this.atkCd = 50; this.cornerT = 0;
       this.seenAtk = -1; this.seenJump = -1; this.punished = -1; this.projSeen = new WeakSet(); this.pressed = 0;
-      this.stats = { attacks: 0, blocks: 0, punishes: 0, antiAirs: 0, retreats: 0, specials: 0, supers: 0 };
+      this.stats = { attacks: 0, blocks: 0, punishes: 0, antiAirs: 0, retreats: 0, specials: 0, supers: 0, rubberFrames: 0 };
     }
-    // difficulty knobs: round 1 is gentle for a casual phone player, later rounds react faster and block more
-    tune(g) {
-      const r = (g && g.round) || 1, d = Math.max(0, Math.min(1, this.level * 0.4 + (r - 1) * 0.3));
+    // rubber-banding (EASY/NORMAL): the player (op) is down a round and low on HP, or nearly KO'd and far behind on HP
+    behind(me, op, g) {
+      if (!this.P.rubber || !me || !op || !g || !g.wins) return false;
+      const pi = g.f ? g.f.indexOf(op) : 0, mi = 1 - pi, hp = op.hp / (op.maxHp || 100);
+      return (g.wins[mi] > g.wins[pi] && hp < 0.4) || (hp < 0.25 && me.hp - op.hp > 40);
+    }
+    // difficulty knobs: round 1 is gentle, later rounds react faster and block more; scaled by the difficulty level
+    tune(g, me, op) {
+      const P = this.P, r = (g && g.round) || 1, d = Math.max(0, Math.min(P.max, P.base + (r - 1) * P.ramp));
+      const rb = this.behind(me, op, g) ? 1 : 0; // discreet: a bit slower, blocks/punishes a bit less, never throws the fight
       return {
-        d, reaction: Math.round(lerp(26, 12, d)), block: lerp(0.15, 0.6, d), punish: lerp(0.15, 0.65, d),
-        antiAir: lerp(0.25, 0.65, d), atkGap: lerp(120, 36, d), aggro: lerp(0.24, 0.6, d), jitter: lerp(10, 5, d),
+        d, rb, reaction: Math.round(lerp(26, 12, d)) + P.react + rb * 6, block: lerp(0.15, 0.6, d) * P.block * (1 - 0.3 * rb),
+        punish: lerp(0.15, 0.65, d) * P.punish * (1 - 0.35 * rb), antiAir: lerp(0.25, 0.65, d) * P.antiAir * (1 - 0.3 * rb),
+        atkGap: lerp(120, 36, d) * P.atkGap * (1 + 0.25 * rb), aggro: lerp(0.24, 0.6, d) * P.aggro * (1 - 0.15 * rb), jitter: lerp(10, 5, d),
+        combo: P.combo * (1 - 0.5 * rb),
         // SUPER: once the meter is full the CPU sits on it for a while (longer at low difficulty), then fires it
         // when it makes sense (in range, opponent grounded, the rush not into a guard), chance per decision
-        superHold: lerp(210, 60, d), superP: lerp(0.3, 0.65, d),
+        superHold: lerp(210, 60, d) * P.superHold * (1 + rb), superP: lerp(0.3, 0.65, d) * P.superP * (1 - 0.4 * rb),
       };
     }
     setMode(m, t) { this.mode = m; this.modeT = Math.round(t); if (m === 'retreat') this.stats.retreats++; }
 
     update(me, op, g) {
-      const T = this.tune(g), W = A.W, ATK = A.ATTACKS;
+      const T = this.tune(g, me, op), W = A.W, ATK = A.ATTACKS;
+      if (T.rb) this.stats.rubberFrames++;
       // ---- perception: what the opponent was doing `reaction` frames ago ----
       this.hist.push({ state: op.state, anim: op.anim, x: op.x, y: op.y, vx: op.vx, vy: op.vy, grounded: op.grounded });
       if (this.hist.length > 40) this.hist.shift();
@@ -135,7 +166,7 @@
           break;
         case 'attack':
           if (dist < reach.kick) { attack(dist < reach.punch && chance(0.55) ? 'punch' : 'kick'); this.combo++; }
-          this.setMode(this.combo < 2 && chance(0.35) ? 'attack2' : chance(0.4) ? 'retreat' : 'wait', rnd(16, 30));
+          this.setMode(this.combo < 2 && chance(T.combo) ? 'attack2' : chance(0.4) ? 'retreat' : 'wait', rnd(16, 30));
           break;
         case 'attack2': // second hit of a little string, once the first one recovered
           if (this.modeT < 10 && dist < reach.kick) { attack(chance(0.5) ? 'punch' : 'kick'); this.setMode(chance(0.5) ? 'retreat' : 'wait', rnd(20, 40)); }

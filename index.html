@@ -24,6 +24,7 @@
         <button class="pbtn" data-act="resume">RESUME</button>
         <button class="pbtn" data-act="restart">RESTART</button>
         <button class="pbtn" data-act="menu">MAIN MENU</button>
+        <p class="pdiff" id="pause-diff">CPU: NORMAL</p>
         <p class="phint">ESC / P: RESUME</p></div>
     </div></div>
   <div id="controls">
@@ -41,7 +42,9 @@
   <div class="screen on" id="scr-title">
     <h1>AI Fighters</h1>
     <button class="big" id="btn-start">&#9654; START</button>
-    <p class="hint">Keys: arrows/WASD move, J punch, K kick, L block, I special, M sound, Esc/P pause</p>
+    <div id="diff" role="radiogroup" aria-label="Difficulty"><span class="dlbl">&#9664; CPU LEVEL &#9654;</span>
+      <button class="dbtn" id="diff-easy" data-diff="easy" role="radio">EASY</button><button class="dbtn" id="diff-normal" data-diff="normal" role="radio">NORMAL</button><button class="dbtn" id="diff-hard" data-diff="hard" role="radio">HARD</button></div>
+    <p class="hint">Keys: &#9664;&#9654; CPU level, arrows/WASD move, J punch, K kick, L block, I special, M sound, Esc/P pause</p>
     <p class="disclaimer">A parody game. Not affiliated with any real person or company.</p>
     <p class="credit" id="title-credit">Created by <a href="https://x.com/SamTalksAI" target="_blank" rel="noopener noreferrer">@SamTalksAI</a></p>
   </div>
@@ -55,6 +58,7 @@
   <div class="screen" id="scr-over">
     <h2 id="over-title">Winner!</h2>
     <p id="over-sub"></p>
+    <p id="over-challenge"></p>
     <button class="big" id="btn-replay">REPLAY</button>
     <button class="small" id="btn-change">Change fighter</button>
     <p class="credit sm" id="over-credit">Game by <a href="https://x.com/SamTalksAI" target="_blank" rel="noopener noreferrer">@SamTalksAI</a></p>

@@ -35,6 +35,21 @@ button{font:inherit;cursor:pointer;border-radius:0;touch-action:manipulation;col
 #title-credit{margin-top:6px}
 .credit.sm{font-size:8px;opacity:.85}
 @media (max-height:420px){#scr-title{gap:8px}#scr-title h1{font-size:clamp(22px,6vh,40px)}.big{padding:10px 20px}.disclaimer{margin-top:0;padding:5px}}
+/* difficulty selector (title): three chunky 8-bit toggles, big tap targets, the chosen one lit up */
+#diff{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap}
+#diff .dlbl{font-size:8px;color:var(--cyn);width:100%}
+.dbtn{font-size:10px;min-width:96px;min-height:44px;padding:8px 10px;background:#100818;border:4px solid var(--gry);color:#bcbcbc;box-shadow:4px 4px 0 var(--blk);touch-action:manipulation}
+.dbtn.sel{background:var(--blu);border-color:var(--yel);color:var(--yel);box-shadow:4px 4px 0 var(--red)}
+.dbtn.sel::before{content:"\25B6 "}
+.dbtn:focus-visible{outline:4px dashed var(--yel);outline-offset:3px}
+.dbtn:active{transform:translate(3px,3px);box-shadow:none}
+@media (hover:hover){.dbtn:not(.sel):hover{color:var(--wht);border-color:var(--wht)}}
+@media (max-height:420px){#diff .dlbl{display:none}.dbtn{min-height:44px;padding:6px 10px}}
+#over-challenge{font-size:11px;color:var(--yel);text-shadow:2px 2px 0 var(--red);min-height:0}
+#over-challenge:empty{display:none}
+#over-challenge.champ{animation:champ .5s steps(2) infinite}
+@keyframes champ{50%{color:var(--cyn)}}
+.pdiff{font-size:7px;color:var(--cyn);text-align:center;margin-top:4px}
 #over-title{font-size:clamp(14px,4vw,28px)}
 #over-sub{font-size:10px;color:var(--cyn)}
 

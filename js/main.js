@@ -46,12 +46,38 @@
     $('cards').appendChild(b);
   });
 
+  // ---- difficulty (title screen): EASY / NORMAL / HARD, NORMAL by default, remembered in localStorage ----
+  const DIFF_KEY = 'aif.difficulty', diffBtns = [...document.querySelectorAll('#diff .dbtn')];
+  const loadDiff = () => { try { const v = localStorage.getItem(DIFF_KEY); return A.DIFFICULTY[v] ? v : A.DIFF_DEFAULT; } catch (e) { return A.DIFF_DEFAULT; } };
+  function setDiff(v, save = true) {
+    if (!A.DIFFICULTY[v]) return;
+    app.difficulty = v;
+    diffBtns.forEach((b) => { const on = b.dataset.diff === v; b.classList.toggle('sel', on); b.setAttribute('aria-checked', on); });
+    if (save) try { localStorage.setItem(DIFF_KEY, v); } catch (e) { /* private mode: just not remembered */ }
+  }
+  app.setDifficulty = setDiff;
+  setDiff(loadDiff(), false);
+  diffBtns.forEach((b) => {
+    b.addEventListener('pointerdown', (e) => e.stopPropagation());
+    b.onclick = (e) => { e.stopPropagation(); if (app.difficulty !== b.dataset.diff) A.sfx.play('block'); setDiff(b.dataset.diff); };
+  });
+  addEventListener('keydown', (e) => { // left / right (or A / D) on the title screen change the level
+    if (app.screen !== 'title' || app.paused) return;
+    const step = { ArrowLeft: -1, KeyA: -1, ArrowRight: 1, KeyD: 1 }[e.code]; if (!step) return;
+    const o = A.DIFF_ORDER, i = Math.max(0, Math.min(o.length - 1, o.indexOf(app.difficulty) + step));
+    if (o[i] !== app.difficulty) { A.sfx.play('block'); setDiff(o[i]); }
+    e.preventDefault();
+  });
+
   function startMatch(cfg, opts = {}) {
     clearTimeout(app.overTimer);
     app.player = cfg;
     app.cpuCfg = A.FIGHTERS.find((f) => f !== cfg); // with more fighters: random pick from the others
-    app.cpu = new A.CPU(0.5);
+    const lv = A.DIFFICULTY[app.difficulty] ? app.difficulty : A.DIFF_DEFAULT;
+    app.cpu = new A.CPU(lv);
     app.game = new A.Game(cfg, app.cpuCfg, onOver);
+    app.game.cpuMeterMul = A.DIFFICULTY[lv].meter; app.game.difficulty = lv;
+    $('pause-diff').textContent = 'CPU: ' + A.DIFFICULTY[lv].label;
     app.lastPhase = null; app.matchId = (app.matchId || 0) + 1;
     // intro cinematic (each fighter walks across, name in big title type), then the short VS card; a restart skips both
     app.introT = opts.restart ? 0 : INTRO_FRAMES;
@@ -144,7 +170,10 @@
   function onOver(champ) {
     const g = app.game;
     $('over-title').textContent = g.f[champ].cfg.name + ' wins!';
-    $('over-sub').textContent = (champ === 0 ? 'You win! ' : 'CPU wins. ') + g.wins[0] + ' - ' + g.wins[1];
+    const lv = g.difficulty || 'normal', ch = $('over-challenge');
+    $('over-sub').textContent = (champ === 0 ? 'You win! ' : 'CPU wins. ') + g.wins[0] + ' - ' + g.wins[1] + ' \u00b7 ' + A.DIFFICULTY[lv].label;
+    ch.textContent = champ !== 0 ? '' : lv === 'hard' ? 'HARD MODE CHAMPION!' : 'CAN YOU BEAT HARD MODE?';
+    ch.classList.toggle('champ', champ === 0 && lv === 'hard');
     app.overTimer = setTimeout(() => { show('over'); A.music.start('title'); }, 300);
   }
 

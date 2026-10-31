@@ -194,7 +194,7 @@
     // SUPER meter gain (fight phase only); plays a blip when it becomes full
     gainMeter(f, n) {
       if (!f || !f.cfg.super || this.phase !== 'fight' || !(n > 0)) return;
-      if (f === this.f[1]) n *= SUPER.cpu;
+      if (f === this.f[1]) n *= SUPER.cpu * (this.cpuMeterMul == null ? 1 : this.cpuMeterMul); // + difficulty level (main.js)
       const was = f.meter; f.meter = Math.min(SUPER.max, f.meter + n);
       if (was < SUPER.max && f.meter >= SUPER.max) { f.fullAt = this.frame; sfx('meter'); }
     }
