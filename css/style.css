@@ -50,27 +50,47 @@ body.fighting #tag{display:none}
 #btn-mute{position:fixed;top:6px;right:6px;z-index:30;font-size:7px;padding:5px 6px;background:var(--blk);border:2px solid var(--gry);opacity:.85}
 body.fighting #btn-mute{top:auto;bottom:6px;right:50%;transform:translateX(50%)}
 
-/* touch controls: NES-pad style */
+/* touch controls: round glossy arcade buttons with pixel-art icons + a bevelled pixel D-pad */
 #controls{display:none;width:100%;box-sizing:border-box;justify-content:space-between;align-items:center;padding:12px 18px}
 body.touch #controls{display:flex;flex:none;height:230px;max-width:520px;margin-top:24px}
-#dpad{position:relative;width:150px;height:150px;touch-action:none;
-  background:linear-gradient(var(--gry),var(--gry)) center/34% 100% no-repeat,linear-gradient(var(--gry),var(--gry)) center/100% 34% no-repeat;
-  filter:drop-shadow(4px 4px 0 var(--blk)) drop-shadow(0 0 0 var(--wht))}
-#dpad::after{content:"";position:absolute;left:33%;top:33%;width:34%;height:34%;background:#545454}
-#dpad i{position:absolute;width:0;height:0;border:9px solid transparent;pointer-events:none}
-#dpad .u{top:8%;left:50%;margin-left:-9px;border-bottom:12px solid var(--wht);border-top:0}
-#dpad .d{bottom:8%;left:50%;margin-left:-9px;border-top:12px solid var(--wht);border-bottom:0}
-#dpad .l{left:8%;top:50%;margin-top:-9px;border-right:12px solid var(--wht);border-left:0}
-#dpad .r{right:8%;top:50%;margin-top:-9px;border-left:12px solid var(--wht);border-right:0}
-#dpad.on{background:linear-gradient(var(--wht),var(--wht)) center/34% 100% no-repeat,linear-gradient(var(--wht),var(--wht)) center/100% 34% no-repeat}
+#dpad{position:relative;width:150px;height:150px;touch-action:none;--arm:#3c3c4c;--hi:#7c7c8c;--lo:#1c1c24;
+  background:linear-gradient(var(--arm),var(--arm)) center/34% 100% no-repeat,linear-gradient(var(--arm),var(--arm)) center/100% 34% no-repeat;
+  filter:drop-shadow(0 4px 0 #101010) drop-shadow(3px 0 0 #101010) drop-shadow(-3px 0 0 #101010) drop-shadow(0 -3px 0 #101010)}
+#dpad::before{content:"";position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(var(--hi),var(--hi)) 50% 0/34% 4px no-repeat,linear-gradient(var(--hi),var(--hi)) 0 33%/33% 4px no-repeat,linear-gradient(var(--hi),var(--hi)) 100% 33%/33% 4px no-repeat,
+    linear-gradient(var(--lo),var(--lo)) 50% 100%/34% 4px no-repeat,linear-gradient(var(--lo),var(--lo)) 0 67%/33% 4px no-repeat,linear-gradient(var(--lo),var(--lo)) 100% 67%/33% 4px no-repeat}
+#dpad::after{content:"";position:absolute;left:41%;top:41%;width:18%;height:18%;border-radius:50%;background:#26262e;box-shadow:inset 0 2px 0 #101010}
+#dpad i{position:absolute;width:34%;height:33%;pointer-events:none;display:flex;align-items:center;justify-content:center;transition:transform .04s}
+#dpad i .ar{width:42%;image-rendering:pixelated;filter:drop-shadow(0 2px 0 #101010)}
+#dpad .u{top:0;left:33%}#dpad .d{bottom:0;left:33%}#dpad .l{left:0;top:33.5%}#dpad .r{right:0;top:33.5%}
+#dpad .d .ar{transform:rotate(180deg)}#dpad .l .ar{transform:rotate(-90deg)}#dpad .r .ar{transform:rotate(90deg)}
+/* pressed direction: that arm sinks and lights up */
+#dpad.U .u,#dpad.D .d,#dpad.L .l,#dpad.R .r{background:#e4e4f0;box-shadow:inset 0 4px 0 #8c8c9c;transform:translateY(2px)}
+#dpad.U .u .ar,#dpad.D .d .ar,#dpad.L .l .ar,#dpad.R .r .ar{filter:none}
 #actions{display:grid;grid-template-columns:repeat(2,68px);grid-template-rows:repeat(2,68px);gap:12px}
-.act{width:68px;height:68px;font-size:9px;touch-action:none;border:4px solid var(--wht);box-shadow:4px 4px 0 var(--blk)}
-.act.on{transform:translate(3px,3px);box-shadow:none;filter:brightness(1.4)}
-#btn-punch{background:var(--org)}#btn-kick{background:#0058f8}#btn-block{background:#00a800}#btn-special{background:#940084}
-/* SUPER ready: the SP button turns gold, pulses and glows (meter full) */
-#btn-special.super{background:var(--yel);color:var(--blk);font-size:8px;border-color:#fff;animation:supglow .5s steps(2) infinite}
-@keyframes supglow{0%{box-shadow:4px 4px 0 var(--blk),0 0 0 3px #e40058,0 0 14px 6px #f8b800}100%{box-shadow:4px 4px 0 var(--blk),0 0 0 3px #00e8d8,0 0 22px 10px #f878f8;filter:brightness(1.25)}}
-#btn-special.super.on{transform:translate(3px,3px);filter:brightness(1.4)}
+.act{--c:#888;--hi:#ccc;--dk:#444;position:relative;width:68px;height:68px;padding:0;touch-action:none;border-radius:50%;border:3px solid #101010;color:#fcfcfc;
+  background:radial-gradient(circle at 34% 28%,var(--hi) 0 20%,var(--c) 21% 58%,var(--dk) 59% 100%);
+  box-shadow:inset 0 -5px 0 rgba(0,0,0,.32),inset 0 3px 0 rgba(255,255,255,.4),0 5px 0 #101010;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;transition:transform .04s,filter .04s}
+/* gloss: a pixel shine blob + a sparkle dot */
+.act::before{content:"";position:absolute;left:20%;top:12%;width:24%;height:11%;background:#fff;opacity:.75;border-radius:2px;
+  box-shadow:-4px 4px 0 -1px rgba(255,255,255,.55);pointer-events:none}
+.act::after{content:"";position:absolute;right:22%;top:18%;width:4px;height:4px;background:#fff;opacity:.6;pointer-events:none}
+.act .ico{width:52%;height:auto;image-rendering:pixelated;filter:drop-shadow(0 2px 0 rgba(0,0,0,.45));pointer-events:none;margin-top:4px}
+.act .lbl{font-size:6px;line-height:1;letter-spacing:.5px;opacity:.9;text-shadow:1px 1px 0 #101010;pointer-events:none}
+.act .ico-sup{display:none}
+.act.on{transform:translateY(4px);filter:brightness(.78);box-shadow:inset 0 4px 0 rgba(0,0,0,.4),inset 0 -2px 0 rgba(255,255,255,.2),0 1px 0 #101010}
+#btn-punch{--c:#f04818;--hi:#fca044;--dk:#a01800}#btn-kick{--c:#1e5bff;--hi:#6cb4ff;--dk:#0b2fa8}
+#btn-block{--c:#14b414;--hi:#80f070;--dk:#006800}#btn-special{--c:#9c2ce0;--hi:#e09cff;--dk:#4c0884}
+/* arcade slant: right column sits a little higher */
+#btn-block,#btn-punch{top:-10px}
+/* SUPER ready: the SP button turns into a glowing gold lightning button labelled SUPER (meter full) */
+#btn-special.super{--c:#f8b800;--hi:#fff8b0;--dk:#b85800;color:#fcfcfc;border-color:#fff;animation:supglow .5s steps(2) infinite}
+#btn-special.super .ico-sp{display:none}#btn-special.super .ico-sup{display:block;width:48%}
+#btn-special.super .lbl{font-size:7px;color:#fff8b0;text-shadow:1px 1px 0 #101010,-1px 0 0 #101010,0 -1px 0 #101010,1px 0 0 #101010}
+@keyframes supglow{0%{box-shadow:inset 0 -5px 0 rgba(0,0,0,.32),inset 0 3px 0 rgba(255,255,255,.4),0 5px 0 #101010,0 0 0 3px #e40058,0 0 14px 6px #f8b800}
+  100%{box-shadow:inset 0 -5px 0 rgba(0,0,0,.32),inset 0 3px 0 rgba(255,255,255,.4),0 5px 0 #101010,0 0 0 3px #00e8d8,0 0 22px 10px #f878f8;filter:brightness(1.2)}}
+#btn-special.super.on{transform:translateY(4px);filter:brightness(.85)}
 .card small.sup{color:var(--yel)}
 
 /* landscape phones: controls overlay the game */
@@ -78,8 +98,9 @@ body.touch #controls{display:flex;flex:none;height:230px;max-width:520px;margin-
   body.touch #controls{position:fixed;left:0;right:0;bottom:0;padding:10px 24px;pointer-events:none;flex:none;max-width:none;height:auto;margin:0}
   body.touch #controls > *{pointer-events:auto;opacity:.82}
   body.touch #dpad{width:130px;height:130px}
-  body.touch #actions{grid-template-columns:repeat(2,56px);grid-template-rows:repeat(2,56px);gap:10px}
-  body.touch .act{width:56px;height:56px;font-size:8px}
+  body.touch #actions{grid-template-columns:repeat(2,58px);grid-template-rows:repeat(2,58px);gap:8px}
+  body.touch .act{width:58px;height:58px}
+  body.touch .act .lbl{font-size:5px}
 }
 
 /* pause button: under the round timer, between the win pips (clear of the health bars and the credit) */

@@ -20,7 +20,8 @@
   // SUPER meter (one super per fighter, fired with the normal special input when the meter is full).
   // Gains: per point of damage dealt / taken, flat per blocked hit. Persists across the rounds of a match, reset per match.
   // freeze = activation freeze (frames) with the darkened screen + portrait cut-in.
-  const SUPER = (A.SUPER = { max: 100, deal: 0.18, take: 0.13, block: 4.5, blockAtk: 2.5, roundLoss: 10, attack: 0, special: 1.5, freeze: 45 }); // tuned by tests/test_super_pacing.py: active player first full ~40-45 s of fight time
+  // cpu = gain multiplier for the CPU side (g.f[1]) so its supers stay slightly rarer than the player's.
+  const SUPER = (A.SUPER = { max: 100, deal: 0.36, take: 0.26, block: 9, blockAtk: 5, roundLoss: 20, attack: 0, special: 3, cpu: 0.85, freeze: 45 }); // tuned by tests/test_super_pacing.py: active player first full ~20-25 s of fight time
   const clampX = (x) => Math.max(40, Math.min(W - 40, x));
   // super move types; each fighter's cfg.super picks one and supplies its numbers (see js/fighters.js)
   const SUPER_TYPES = (A.SUPER_TYPES = {
@@ -45,7 +46,7 @@
               g.hit(opp, f.x, { attacker: f, damage: (s.damage / s.hits) * f.cfg.stats.power, chip: s.chip / s.hits,
                 hitstun: last ? 34 : s.every + 6, push: last ? 9 : 1.2, y: opp.y - 90 - (B.hits % 2) * 30, isSuper: true, sfx: last ? 'boom' : 'zap' });
               B.landed++; if (!blocked) B.burn = t;
-              if (last) { g.shake = 16; g.fx.push({ x: B.tx, y: GROUND - 20, by: GROUND, t: 0, col: '#b8f818' }); }
+              if (last) { g.shake = 16; g.fx.push({ x: B.tx, y: GROUND - 20, by: GROUND, t: 0, col: '#00bfff' }); }
             }
           }
         }
@@ -87,8 +88,11 @@
               const kick = R.k % 2 === 1;
               g.hit(opp, f.x, { attacker: f, damage: s.hits[R.k] * f.cfg.stats.power, chip: 0, hitstun: s.hitEvery + 12, push: 0,
                 y: f.y - (kick ? 72 : 118), unblockable: true, isSuper: true, sfx: kick ? 'kick' : 'punch' });
-              R.k++;
-            } else { g.tryGrab(f, { range: 400, damage: s.throwDamage, text: s.finisher, isSuper: true }); R.ph = 'recover'; R.t = 0; R.thrown = true; }
+              R.k++; if (s.hitFx) s.hitFx(f, opp, g, R.k, kick); // visual only (light burst)
+            } else {
+              if (g.tryGrab(f, { range: 400, damage: s.throwDamage, text: s.finisher, isSuper: true }) && s.slamFx) s.slamFx(f, opp, g); // visual only
+              R.ph = 'recover'; R.t = 0; R.thrown = true;
+            }
           }
         } else if (R.ph === 'recover') { if (R.t >= (R.thrown ? s.recoverHit : s.recover)) { f.rush = null; f.setState('idle'); } }
       },
@@ -180,7 +184,7 @@
     startRound() {
       this.round++;
       this.f[0].reset(260, 1); this.f[1].reset(700, -1);
-      this.projectiles = []; this.fx = []; this.freeze = 0; this.superBy = null;
+      this.projectiles = []; this.fx = []; this.vfx = []; this.freeze = 0; this.superBy = null;
       this.time = ROUND_SECS * 60; this.phase = 'intro'; this.phaseT = 90;
       this.msg = 'ROUND ' + this.round; this.sub = ''; this.endT = 0; this.roundWinner = -1;
     }
@@ -190,6 +194,7 @@
     // SUPER meter gain (fight phase only); plays a blip when it becomes full
     gainMeter(f, n) {
       if (!f || !f.cfg.super || this.phase !== 'fight' || !(n > 0)) return;
+      if (f === this.f[1]) n *= SUPER.cpu;
       const was = f.meter; f.meter = Math.min(SUPER.max, f.meter + n);
       if (was < SUPER.max && f.meter >= SUPER.max) { f.fullAt = this.frame; sfx('meter'); }
     }
@@ -273,6 +278,10 @@
         return;
       }
       if (this.shake > 0) this.shake--;
+      if (this.vfx.length) { // visual-only super effects that outlive the move (e.g. the TAKEDOWN slam); never touch gameplay state
+        for (const e of this.vfx) { e.t++; if (e.update) e.update(e, this); }
+        this.vfx = this.vfx.filter((e) => e.t < e.life);
+      }
       const [a, b] = this.f, blank = A.blankInput();
       if (this.phase === 'intro') {
         if (--this.phaseT <= 0) { this.phase = 'fight'; this.msg = 'FIGHT!'; this.msgT = 40; sfx('round'); }
@@ -337,12 +346,14 @@
       // the fighter being hit / thrown is drawn first so the attacker's fist overlaps it
       const order = [...this.f].sort((p, q) => (p.state === 'punch' || p.state === 'kick' || p.state === 'special') - (q.state === 'punch' || q.state === 'kick' || q.state === 'special'));
       for (const f of this.f) if (f.state === 'super' && f.cfg.super.drawBack) f.cfg.super.drawBack(ctx, f, this); // e.g. darkened stage, satellite
+      for (const e of this.vfx) if (e.drawBack) e.drawBack(ctx, e, this);
       for (const f of order) {
         if (f.state === 'super' && A.drawSuperFx) A.drawSuperFx(ctx, f, this, 'under');
         A.drawFighter(ctx, f, this);
         if (f.state === 'super' && A.drawSuperFx) A.drawSuperFx(ctx, f, this, 'over');
       }
       for (const f of this.f) if (f.state === 'super' && f.cfg.super.drawTop) f.cfg.super.drawTop(ctx, f, this); // e.g. the beam itself
+      for (const e of this.vfx) if (e.drawTop) e.drawTop(ctx, e, this);
       if (A.drawTears) for (const f of this.f) A.drawTears(ctx, f, this);
       for (const p of this.projectiles) p.draw(ctx, { ...p, y: vis(p.y, p.by) }, this.frame);
       for (const e of this.fx) {
@@ -448,7 +459,8 @@
     .split(' ').map((h) => [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4), 16)]);
   // a few 16-bit style ramps for the stage (fighters register their own sprite ramps via A.addColors)
   ('100818 181028 241838 302050 402870 583088 1c2c48 283c5c 38506c 50687c 6c8098 3c2c1c 5c4430 141c24 202c38 2c3c4c ' +
-    'f8f0a0 d8c060 60e8f8 20a0c8 f86060 c02838 70f070 30b050')
+    'f8f0a0 d8c060 60e8f8 20a0c8 f86060 c02838 70f070 30b050 ' +
+    '00bfff 1e5bff 0b2fa8 7fe8ff c8f4ff ff2bd6 ff7af0 2be8ff 2a0a4a')
     .split(' ').forEach((h) => PAL.push([parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4), 16)]));
   A.PALETTE = PAL;
   const qcache = new Map();

@@ -17,12 +17,14 @@
   addEventListener('keyup', (e) => { const k = KEYS[e.code]; if (k) state[k] = false; });
   addEventListener('blur', () => Object.keys(state).forEach((k) => (state[k] = false)));
 
+  // short haptic tick on each press, where supported
+  const buzz = () => { try { navigator.vibrate && navigator.vibrate(10); } catch (_) {} };
   A.initTouch = function () {
     // action buttons: each tracks its own pointers, so several can be held at once
     document.querySelectorAll('[data-k]').forEach((btn) => {
       const k = btn.dataset.k, ids = new Set();
       const set = () => { state[k] = ids.size > 0; btn.classList.toggle('on', state[k]); };
-      btn.addEventListener('pointerdown', (e) => { e.preventDefault(); ids.add(e.pointerId); btn.setPointerCapture?.(e.pointerId); press(k); set(); });
+      btn.addEventListener('pointerdown', (e) => { e.preventDefault(); buzz(); ids.add(e.pointerId); btn.setPointerCapture?.(e.pointerId); press(k); set(); });
       for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) btn.addEventListener(ev, (e) => { ids.delete(e.pointerId); set(); });
     });
     // D-pad: 8-way direction from thumb position, slide-friendly
@@ -32,8 +34,10 @@
       const r = pad.getBoundingClientRect(), dx = (e.clientX - r.left) / r.width - 0.5, dy = (e.clientY - r.top) / r.height - 0.5, dz = 0.16;
       state.left = dx < -dz; state.right = dx > dz; state.up = dy < -dz * 1.4; state.down = dy > dz * 1.4;
       pad.classList.add('on');
+      const was = pad.className; for (const [c, v] of [['U', state.up], ['D', state.down], ['L', state.left], ['R', state.right]]) pad.classList.toggle(c, v);
+      if (pad.className !== was && (state.up || state.down || state.left || state.right)) buzz();
     };
-    const clear = () => { padId = null; state.left = state.right = state.up = state.down = false; pad.classList.remove('on'); };
+    const clear = () => { padId = null; state.left = state.right = state.up = state.down = false; pad.classList.remove('on', 'U', 'D', 'L', 'R'); };
     pad.addEventListener('pointerdown', (e) => { e.preventDefault(); padId = e.pointerId; pad.setPointerCapture?.(e.pointerId); dir(e); });
     pad.addEventListener('pointermove', (e) => { if (e.pointerId === padId) dir(e); });
     for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) pad.addEventListener(ev, (e) => { if (e.pointerId === padId) clear(); });

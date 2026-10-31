@@ -222,7 +222,7 @@
   const spBtn = document.getElementById('btn-special');
   function superButton() {
     const g = app.game, on = !!(g && app.screen === 'fight' && g.phase !== 'over' && g.f[0].superReady);
-    if (on !== !!app.superOn) { app.superOn = on; spBtn.classList.toggle('super', on); spBtn.textContent = on ? 'SUPER' : 'SP'; }
+    if (on !== !!app.superOn) { app.superOn = on; spBtn.classList.toggle('super', on); spBtn.querySelector('.lbl').textContent = on ? 'SUPER' : 'SP'; }
     if (app.superDuck && !(g && app.screen === 'fight')) { app.superDuck = false; A.music.duck(false); }
     A.superKeyHint = document.body.classList.contains('touch') ? '' : 'PRESS I: SUPER!';
   }

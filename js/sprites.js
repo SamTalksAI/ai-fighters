@@ -255,6 +255,7 @@
     if (!s || !s.glitch || !R || !(R.ph === 'wind' || R.ph === 'dash' || (R.ph === 'combo' && R.t < 4))) return;
     const K = A.S, t = g ? g.frame : 0;
     if (layer === 'under') {
+      if (s.drawBack) return; // the fighter's own light show draws the (neon) afterimages
       ctx.save();
       for (let k = 3; k >= 1; k--) { // trailing afterimages, tinted by a blue overlay pass
         const gh = Object.create(f); gh.x = f.x - f.facing * k * (R.ph === 'dash' ? 34 : 12);

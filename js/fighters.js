@@ -57,7 +57,7 @@
       // Jumping does not help; running away during the whole telegraph can dodge it (reticle lag + gap after the lock).
       super: {
         name: 'Gamma Ray', type: 'beam', frames: 114, chargeAt: 4, lockAt: 26, beamAt: 38, beamFrames: 60, every: 12, hits: 5,
-        track: 0.1, halfWidth: 76, damage: 32, chip: 8, aiRange: [0, 2000], color: '#00a800', color2: '#b8f818',
+        track: 0.1, halfWidth: 76, damage: 32, chip: 8, aiRange: [0, 2000], color: '#1e5bff', color2: '#7fe8ff',
         chargeSfx: 'gammaCharge', beamSfx: 'gammaBeam', drawBack: drawGammaBack, drawTop: drawGammaTop,
       },
       sprite: {
@@ -104,7 +104,8 @@
       super: {
         name: 'Metaverse Takedown', type: 'rush', windup: 6, dashFrames: 24, dashSpeed: 15, reach: 150, hits: [4, 4, 5], hitEvery: 9,
         throwDamage: 14, chip: 6, recover: 34, recoverHit: 22, finisher: 'TAKEDOWN!', aiRange: [140, 420], glitch: true,
-        color: '#0058f8', color2: '#3cbcfc', dashSfx: 'glitch',
+        color: '#0058f8', color2: '#ff7af0', dashSfx: 'glitch',
+        drawBack: drawMetaBack, drawTop: drawMetaTop, hitFx: metaHitFx, slamFx: metaSlamFx, // neon VR light show (visual only)
       },
       sprite: {
         ramps: {
@@ -167,7 +168,8 @@
     return rows;
   })();
   const SAT_COLS = { k: '#100818', b: '#24188c', B: '#3cbcfc', G: '#545464', g: '#a4a4b4', w: '#fcfcfc', y: '#f8b800' };
-  const GR = { dark: '#005800', mid: '#00a800', hi: '#58d854', lime: '#b8f818', pale: '#d8f878', white: '#fcfcfc', red: '#f83800' };
+  // electric blue: deep #1e5bff outer glow, #00bfff band, white-hot core
+  const GR = { dark: '#0b2fa8', mid: '#1e5bff', hi: '#00bfff', lime: '#7fe8ff', pale: '#c8f4ff', white: '#fcfcfc', red: '#f83800' };
   const SAT_Y = 44, EMIT_Y = SAT_Y + 24, FLOOR_Y = () => Math.round(A.GROUND / A.S); // satellite (drawn 2x: 92 x 24 low-res px) sits just under the HUD
   const gammaBox = (ctx) => { const K = A.S; return (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x) * K, Math.round(y) * K, Math.max(1, Math.round(w)) * K, Math.max(1, Math.round(h)) * K); }; };
   function gammaDark(f, s) { // stage dim level 0..1
@@ -179,7 +181,7 @@
     const s = f.cfg.super, B = f.beam, t = f.anim, K = A.S, box = gammaBox(ctx); if (!B) return;
     const dark = gammaDark(f, s), bt = t - s.beamAt, firing = bt >= 0 && bt < s.beamFrames;
     ctx.fillStyle = `rgba(0,0,16,${0.74 * dark})`; ctx.fillRect(-40, -40, A.W + 80, A.H + 80);
-    if (firing) { ctx.fillStyle = 'rgba(0,120,0,0.12)'; ctx.fillRect(-40, -40, A.W + 80, A.H + 80); }
+    if (firing) { ctx.fillStyle = 'rgba(0,70,220,0.14)'; ctx.fillRect(-40, -40, A.W + 80, A.H + 80); }
     const sx = Math.round(B.tx / K), drop = Math.max(0, 1 - t / 10), sy = Math.round(SAT_Y - 34 * drop * drop);
     // uplink chevrons rising from Musk's raised fist
     if (t >= 2 && t < s.lockAt + 4) for (let k = 0; k < 3; k++) {
@@ -204,7 +206,7 @@
   function drawGammaTop(ctx, f, g) {
     const s = f.cfg.super, B = f.beam, t = f.anim, K = A.S, box = gammaBox(ctx); if (!B) return;
     const sx = Math.round(B.tx / K), gy = FLOOR_Y(), bt = t - s.beamAt;
-    // reticle: green brackets closing in while tracking, red/white + LOCK once locked
+    // reticle: cyan brackets closing in while tracking, red/white + LOCK once locked
     if (t >= s.chargeAt && bt < 4) {
       const ry = Math.round((A.GROUND - 95) / K), r = B.locked ? 15 : Math.round(15 + (s.lockAt - t) * 0.7);
       const col = B.locked ? (t % 4 < 2 ? GR.red : GR.white) : GR.lime, L = 6;
@@ -243,18 +245,181 @@
       }
     }
     ctx.restore();
-    // victim burn: green / white X-ray flicker of the fighter that just took a beam hit
+    // victim burn: blue / white X-ray flicker of the fighter that just took a beam hit
     const v = g.f.find((o) => o !== f);
     if (v && t - B.burn < 10 && v.state === 'hit') {
       const cv = ctx.canvas; burnCv = burnCv || document.createElement('canvas');
       if (burnCv.width !== cv.width || burnCv.height !== cv.height) { burnCv.width = cv.width; burnCv.height = cv.height; }
       const o = burnCv.getContext('2d'); o.setTransform(1, 0, 0, 1, 0, 0); o.clearRect(0, 0, burnCv.width, burnCv.height);
       o.setTransform(ctx.getTransform()); o.imageSmoothingEnabled = false; A.drawFighter(o, v, null);
-      o.setTransform(1, 0, 0, 1, 0, 0); o.globalCompositeOperation = 'source-atop'; o.fillStyle = (t >> 1) % 2 ? GR.lime : GR.white; o.fillRect(0, 0, burnCv.width, burnCv.height); o.globalCompositeOperation = 'source-over';
+      o.setTransform(1, 0, 0, 1, 0, 0); o.globalCompositeOperation = 'source-atop'; o.fillStyle = (t >> 1) % 2 ? GR.hi : GR.white; o.fillRect(0, 0, burnCv.width, burnCv.height); o.globalCompositeOperation = 'source-over';
       ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = (t >> 1) % 2 ? 0.8 : 0.6; ctx.drawImage(burnCv, 0, 0); ctx.restore();
     }
     if (bt < 2) { ctx.fillStyle = 'rgba(252,252,252,0.85)'; ctx.fillRect(-40, -40, A.W + 80, A.H + 80); } // slam flash
-    else if (bt < 5) { ctx.fillStyle = 'rgba(184,248,24,0.3)'; ctx.fillRect(-40, -40, A.W + 80, A.H + 80); }
+    else if (bt < 5) { ctx.fillStyle = 'rgba(0,191,255,0.3)'; ctx.fillRect(-40, -40, A.W + 80, A.H + 80); }
+  }
+
+  // ---- SUPER: METAVERSE TAKEDOWN light show (visual only; drawn in low-res px like the Gamma Ray) ----
+  // darkened stage + Tron-like neon grid floor lighting up under the fighters, Meta-blue aura on Zuck, neon ghost trail
+  // during the dash, light bursts + big pixel impact stars + RGB-split glitch on every combo hit, and on the throw a
+  // huge flash + shockwave rings + floating pixel likes / hearts when the victim slams into the floor. Particles are
+  // deterministic (no per-frame allocation) and capped per effect.
+  const MV = { mag: '#ff2bd6', pink: '#ff7af0', cyan: '#2be8ff', blue: '#1e5bff', deep: '#0b2fa8', sky: '#00bfff', white: '#fcfcfc', ink: '#2a0a4a' };
+  const HEART = ['.mm.mm.', 'mpmmmmm', 'mmmmmmm', '.mmmmm.', '..mmm..', '...m...'];
+  const LIKE = ['bbbbbbbb', 'bbbbwbbb', 'bbbwwbbb', 'bwbwwwwb', 'bwbwwwwb', 'bwbwwwwb', 'bwbwwwbb', 'bbbbbbbb']; // generic thumbs-up badge
+  const ICOL = { m: MV.mag, p: MV.pink, b: MV.blue, w: MV.white };
+  const scratchCv = {};
+  function scratch(name, ctx) {
+    const cv = ctx.canvas; let c = scratchCv[name];
+    if (!c) c = scratchCv[name] = document.createElement('canvas');
+    if (c.width !== cv.width || c.height !== cv.height) { c.width = cv.width; c.height = cv.height; }
+    return c;
+  }
+  // flat-colour silhouette of a fighter on a scratch canvas the size of the low-res canvas (same transform as ctx)
+  function silhouette(ctx, f, cols) {
+    const base = scratch('sil', ctx), o = base.getContext('2d');
+    o.setTransform(1, 0, 0, 1, 0, 0); o.globalCompositeOperation = 'source-over'; o.clearRect(0, 0, base.width, base.height);
+    o.setTransform(ctx.getTransform()); o.imageSmoothingEnabled = false; A.drawFighter(o, f, null); o.setTransform(1, 0, 0, 1, 0, 0);
+    return cols.map((col, i) => {
+      const c = scratch('sil' + i, ctx), q = c.getContext('2d');
+      q.setTransform(1, 0, 0, 1, 0, 0); q.globalCompositeOperation = 'copy'; q.drawImage(base, 0, 0);
+      q.globalCompositeOperation = 'source-atop'; q.fillStyle = col; q.fillRect(0, 0, c.width, c.height); q.globalCompositeOperation = 'source-over';
+      return c;
+    });
+  }
+  const blit = (ctx, c, dx, dy, a) => { ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = a; ctx.drawImage(c, Math.round(dx), Math.round(dy)); ctx.restore(); };
+  // chromatic aberration: the red channel shifted one way, blue the other (green stays), recombined exactly (no
+  // brightening) and laid over the frame at `alpha`; plus optional scanline slice tears
+  function rgbSplit(ctx, amt, alpha, tears, seed) {
+    const cv = ctx.canvas, c = scratch('rgb', ctx), o = c.getContext('2d'), m = scratch('rgbm', ctx), q = m.getContext('2d'), W = cv.width, H = cv.height;
+    q.setTransform(1, 0, 0, 1, 0, 0); q.globalAlpha = 1; q.globalCompositeOperation = 'copy'; q.fillStyle = '#000'; q.fillRect(0, 0, W, H);
+    for (const [col, dx] of [['#ff0000', amt], ['#00ff00', 0], ['#0000ff', -amt]]) {
+      o.setTransform(1, 0, 0, 1, 0, 0); o.globalCompositeOperation = 'copy'; o.drawImage(cv, 0, 0);
+      o.globalCompositeOperation = 'multiply'; o.fillStyle = col; o.fillRect(0, 0, W, H); o.globalCompositeOperation = 'source-over';
+      q.globalCompositeOperation = 'lighter'; q.drawImage(c, dx, 0);
+    }
+    ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = alpha; ctx.drawImage(m, 0, 0); ctx.globalAlpha = 1;
+    if (tears) { // a few horizontal bands slide sideways
+      o.globalCompositeOperation = 'copy'; o.drawImage(cv, 0, 0); o.globalCompositeOperation = 'source-over';
+      for (let k = 0; k < tears; k++) { const y = (seed * 37 + k * 53) % H, h = 2 + ((seed + k) % 5), dx = (((seed * 7 + k * 13) % 9) - 4) * 2; ctx.drawImage(c, 0, y, W, h, dx, y, W, h); }
+    }
+    ctx.restore();
+  }
+  // perspective neon grid on the floor; `lit(x)` (0..1) brightens it around fighters / the shockwave ring
+  function neonGrid(ctx, g, alpha, lit, scroll) {
+    const box = gammaBox(ctx), gy = FLOOR_Y() - 3, by = Math.round(A.H / A.S) + 2, cx = Math.round(A.W / A.S / 2), K = A.S;
+    ctx.save(); ctx.globalAlpha = alpha;
+    for (let k = 0; k < 9; k++) { // horizontal lines rushing toward the viewer
+      const u = ((k + scroll) % 9) / 9, y = Math.round(gy + (by - gy) * u * u);
+      for (let x = -4; x < 2 * cx + 4; x += 4) { const l = lit(x * K); box(x, y, 4, 1, l > 0.66 ? MV.white : l > 0.25 ? MV.pink : MV.mag); }
+    }
+    for (let i = -13; i <= 13; i++) for (let y = gy; y < by; y += 1) { // vertical lines converging to the horizon
+      const u = (y - gy) / (by - gy), x = Math.round(cx + i * 30 * (0.3 + 0.7 * u)), l = lit(x * K);
+      if ((y & 1) === 0 || l > 0.25) box(x, y, 1, 1, l > 0.66 ? MV.white : l > 0.25 ? MV.cyan : MV.sky);
+    }
+    box(-4, gy, 2 * cx + 8, 1, MV.cyan); // horizon glow line
+    ctx.restore();
+  }
+  const near = (fs, w) => (x) => { let m = 0; for (const f of fs) m = Math.max(m, 1 - Math.abs(x - f.x) / w); return m; };
+  function drawPixelIcon(ctx, grid, x, y, scale) {
+    const box = gammaBox(ctx);
+    for (let r = 0; r < grid.length; r++) for (let c = 0; c < grid[r].length; c++) { const col = ICOL[grid[r][c]]; if (col) box(x + c * scale, y + r * scale, scale, scale, col); }
+  }
+  // likes / hearts bursting from (x, y) low-res px; n capped, `a` = age in frames
+  function likeBurst(ctx, x, y, a, n, seed, life) {
+    if (a >= life) return;
+    for (let k = 0; k < n; k++) {
+      const ang = (k / n) * Math.PI * 2 + seed, sp = 1.1 + ((k * 7 + seed * 3) % 5) * 0.25;
+      const px = x + Math.cos(ang) * sp * a * 1.4, py = y + Math.sin(ang) * sp * a * 0.9 - a * 0.55 + a * a * 0.008;
+      if (a > life - 6 && (a + k) % 2) continue; // blink out
+      drawPixelIcon(ctx, k % 3 === 0 ? LIKE : HEART, px - 4, py - 3, 1);
+    }
+  }
+  function starBurst(ctx, x, y, a, size, c1, c2) { // big 8-ray pixel impact star + ring
+    const box = gammaBox(ctx), r = size * (0.5 + Math.min(1, a / 4) * 0.7) * (a > 8 ? Math.max(0, 1 - (a - 8) / 6) : 1); if (r <= 0) return;
+    for (let i = 0; i < 8; i++) {
+      const an = i * Math.PI / 4 + 0.39, L = r * (i % 2 ? 0.55 : 1);
+      for (let k = 0; k < L; k++) { const w = k < L * 0.4 ? 3 : 2; box(x + Math.cos(an) * k, y + Math.sin(an) * k, w, w, k < L * 0.35 ? MV.white : (k + a) % 4 < 2 ? c1 : c2); }
+    }
+    for (let i = 0; i < 24; i++) { const an = i / 24 * Math.PI * 2, R = r * 1.25 + a; box(x + Math.cos(an) * R, y + Math.sin(an) * R * 0.8, 2, 2, i % 2 ? c1 : c2); }
+    if (a < 4) for (let dy = -3; dy <= 3; dy++) { const w = 4 - Math.abs(dy); box(x - w, y + dy, w * 2 + 1, 1, MV.white); }
+  }
+  const flash = (ctx, rgba) => { ctx.fillStyle = rgba; ctx.fillRect(-40, -40, A.W + 80, A.H + 80); };
+  const metaDark = (f) => { const R = f.rush; return !R ? 0 : R.ph === 'wind' ? Math.min(1, R.t / 5) : R.ph === 'recover' ? Math.max(0.35, 1 - R.t / 24) : 1; };
+  // under the fighters: dark stage, neon grid floor, neon ghost trail (dash), Meta-blue aura around Zuck
+  function drawMetaBack(ctx, f, g) {
+    const R = f.rush; if (!R) return;
+    const K = A.S, d = metaDark(f), opp = g.f.find((o) => o !== f);
+    flash(ctx, `rgba(8,0,28,${0.78 * d})`);
+    neonGrid(ctx, g, 0.55 + 0.45 * d, near([f, opp], 120), g.frame * 0.25);
+    const dash = R.ph === 'wind' || R.ph === 'dash' || (R.ph === 'combo' && R.t < 6);
+    const [cMag, cCyan, cBlue] = silhouette(ctx, f, [MV.mag, MV.cyan, MV.blue]);
+    if (dash) { // neon afterimages left behind along the dash + light streaks
+      const gap = R.ph === 'dash' ? 26 : 12;
+      for (let k = 5; k >= 1; k--) blit(ctx, [cMag, cCyan, cBlue][k % 3], -f.facing * k * gap / K, 0, 0.82 - k * 0.12);
+      const box = gammaBox(ctx), fx = Math.round(f.x / K), fy = Math.round(f.y / K);
+      for (let k = 0; k < 7; k++) { const y = fy - 8 - ((k * 11 + g.frame) % 64), len = 22 + (k * 17) % 40; box(f.facing > 0 ? fx - 14 - len : fx + 14, y, len, 1, k % 2 ? MV.pink : MV.cyan); }
+    }
+    const pulse = 0.5 + 0.25 * Math.sin(g.frame * 0.5); // Meta-blue aura: the silhouette offset around Zuck
+    for (const [dx, dy] of [[-2, 0], [2, 0], [0, -2], [0, 1], [-1, -1], [1, -1]]) blit(ctx, cBlue, dx, dy, pulse);
+    for (const [dx, dy] of [[-3, -1], [3, -1]]) blit(ctx, cCyan, dx, dy, pulse * 0.5);
+  }
+  // over the fighters: glitch tears + RGB split while dashing
+  function drawMetaTop(ctx, f, g) {
+    const R = f.rush; if (!R) return;
+    if (R.ph === 'wind' && R.t < 2) flash(ctx, 'rgba(255,122,240,0.45)');
+    if (R.ph === 'dash' || R.ph === 'wind') rgbSplit(ctx, 2 + (g.frame % 3 === 0 ? 1 : 0), 0.85, g.frame % 4 < 2 ? 4 : 0, g.frame);
+  }
+  const MAX_VFX = 8;
+  const pushVfx = (g, e) => { if (!g.vfx) return; g.vfx.push(e); if (g.vfx.length > MAX_VFX) g.vfx.shift(); };
+  // one combo hit: light burst at the fist / boot
+  function metaHitFx(f, opp, g, k, kick) {
+    const K = A.S, x = Math.round((opp.x - f.facing * 22) / K), y = Math.round((f.y - (kick ? 72 : 118)) / K);
+    pushVfx(g, { t: 0, life: 24, x, y, k,
+      drawTop(ctx, e, g) {
+        const a = e.t, box = gammaBox(ctx);
+        if (a < 2) flash(ctx, 'rgba(252,252,252,0.5)'); else if (a < 4) flash(ctx, e.k % 2 ? 'rgba(43,232,255,0.22)' : 'rgba(255,43,214,0.22)');
+        if (a < 10) for (let i = 0; i < 12; i++) { // light rays
+          const an = i / 12 * Math.PI * 2 + e.k, L = 14 + a * 6;
+          for (let s = 6 + a * 2; s < L; s += 2) box(e.x + Math.cos(an) * s, e.y + Math.sin(an) * s * 0.7, 1, 1, i % 2 ? MV.cyan : MV.pink);
+        }
+        starBurst(ctx, e.x, e.y, a, 15 + e.k * 3, e.k % 2 ? MV.cyan : MV.mag, MV.sky);
+        likeBurst(ctx, e.x, e.y, a, 5, e.k * 1.3, 24);
+        if (a < 5) rgbSplit(ctx, 4 - (a >> 1), 0.9, a < 3 ? 5 : 0, g.frame);
+      },
+    });
+  }
+  // the throw: neon trail on the victim in the air, then the floor slam (flash, shockwave rings, likes, shake, RGB split)
+  function metaSlamFx(f, opp, g) {
+    pushVfx(g, { t: 0, life: 150, victim: opp, landT: -1, x: 0,
+      update(e, g) {
+        const v = e.victim;
+        if (e.landT < 0 && (v.grounded && v.state !== 'thrown' || e.t > 70)) { e.landT = e.t; e.x = v.x; g.shake = Math.max(g.shake, 22); A.sfx && A.sfx.play('boom'); e.life = e.t + 60; }
+      },
+      drawBack(ctx, e, g) {
+        const a = e.landT < 0 ? 0 : e.t - e.landT, d = e.landT < 0 ? 1 : Math.max(0, 1 - a / 50);
+        if (d <= 0) return;
+        if (!(e.zuck && e.zuck.state === 'super')) flash(ctx, `rgba(8,0,28,${0.72 * d})`), neonGrid(ctx, g, d, e.landT < 0 ? near([e.victim], 120) : (x) => 0, g.frame * 0.25);
+        if (e.landT >= 0) { const R = 30 + a * 22; neonGrid(ctx, g, d, (x) => Math.max(0, 1 - Math.abs(Math.abs(x - e.x) - R) / 60), 0); } // the grid ripples with the shockwave
+        if (e.landT < 0) { const [c1, c2] = silhouette(ctx, e.victim, [MV.mag, MV.cyan]), v = e.victim; for (let k = 4; k >= 1; k--) blit(ctx, k % 2 ? c1 : c2, -v.vx * k * 1.6 / A.S, -v.vy * k * 1.6 / A.S, 0.7 - k * 0.13); }
+      },
+      drawTop(ctx, e, g) {
+        const box = gammaBox(ctx), gy = FLOOR_Y();
+        if (e.t < 2) flash(ctx, 'rgba(252,252,252,0.55)');
+        if (e.landT < 0) return;
+        const a = e.t - e.landT, x = Math.round(e.x / A.S);
+        if (a < 3) flash(ctx, 'rgba(252,252,252,0.9)'); else if (a < 8) flash(ctx, `rgba(255,43,214,${0.4 - a * 0.04})`);
+        for (const [k, col] of [[0, MV.white], [5, MV.cyan], [10, MV.mag]]) { // shockwave rings along the floor
+          const r = (a - k) * 7; if (r <= 0 || a - k > 24) continue;
+          for (let i = 0; i < 64; i++) { const an = i / 64 * Math.PI * 2; box(x + Math.cos(an) * r, gy + Math.sin(an) * r * 0.2, 2, 1, col); }
+        }
+        if (a < 12) for (let dy = 0; dy < 60; dy += 1) { const w = (12 - a) * (1 - dy / 60) * 1.4; box(x - w, gy - dy, w * 2, 1, dy % 3 ? MV.pink : MV.white); } // light pillar
+        starBurst(ctx, x, gy - 16, a, 34, MV.mag, MV.cyan); if (a > 2) starBurst(ctx, x, gy - 16, a - 3, 20, MV.cyan, MV.white);
+        likeBurst(ctx, x, gy - 14, a, 14, 0.4, 44);
+        if (a < 10) rgbSplit(ctx, Math.max(1, 6 - (a >> 1)), 0.9, a < 6 ? 7 : 0, g.frame);
+      },
+    });
+    g.vfx[g.vfx.length - 1].zuck = f;
   }
 
   function add(a, b, k = 1) { return [a[0] + b[0] * k, a[1] + b[1] * k]; }
