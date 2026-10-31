@@ -16,7 +16,7 @@
       this.level = level; // 0..1 base skill; the round number adds on top (see tune)
       this.hist = []; this.mode = 'wait'; this.modeT = 30; this.atkCd = 50; this.cornerT = 0;
       this.seenAtk = -1; this.seenJump = -1; this.punished = -1; this.projSeen = new WeakSet(); this.pressed = 0;
-      this.stats = { attacks: 0, blocks: 0, punishes: 0, antiAirs: 0, retreats: 0, specials: 0 };
+      this.stats = { attacks: 0, blocks: 0, punishes: 0, antiAirs: 0, retreats: 0, specials: 0, supers: 0 };
     }
     // difficulty knobs: round 1 is gentle for a casual phone player, later rounds react faster and block more
     tune(g) {
@@ -24,6 +24,9 @@
       return {
         d, reaction: Math.round(lerp(26, 12, d)), block: lerp(0.15, 0.6, d), punish: lerp(0.15, 0.65, d),
         antiAir: lerp(0.25, 0.65, d), atkGap: lerp(120, 36, d), aggro: lerp(0.24, 0.6, d), jitter: lerp(10, 5, d),
+        // SUPER: once the meter is full the CPU sits on it for a while (longer at low difficulty), then fires it
+        // when it makes sense (in range, opponent grounded, the rush not into a guard), chance per decision
+        superHold: lerp(210, 60, d), superP: lerp(0.3, 0.65, d),
       };
     }
     setMode(m, t) { this.mode = m; this.modeT = Math.round(t); if (m === 'retreat') this.stats.retreats++; }
@@ -44,6 +47,10 @@
       const meWall = me.x < 90 || me.x > W - 90, opWall = op.x < 100 || op.x > W - 100;
       this.cornerT = opWall && dist < 230 ? this.cornerT + 1 : Math.max(0, this.cornerT - 2);
 
+      // SUPER bookkeeping: when the meter got full + a random hold before we are willing to use it
+      if (me.superReady) { if (this.fullSince == null) { this.fullSince = g.frame; this.superWait = T.superHold * rnd(0.6, 1.5); } }
+      else this.fullSince = null;
+
       if (me.busy) { // mid-attack / hitstun: keep holding block if we were blocking
         if (me.state === 'blockstun') inp.block = true;
         return inp;
@@ -55,9 +62,22 @@
         if (pr.owner === me || this.projSeen.has(pr)) continue;
         const gap = (me.x - pr.x) * pr.dir;
         if (gap > 0 && gap < 420 - delay * Math.abs(pr.vx) * 0.5) {
-          this.projSeen.add(pr);
-          if (chance(T.block + 0.15)) this.setMode(chance(0.5) ? 'duck' : 'block', gap / Math.abs(pr.vx) + 8);
+          this.projSeen.add(pr); // (a super projectile can't be ducked: block it)
+          if (chance(T.block + 0.15)) this.setMode(!pr.multi && chance(0.5) ? 'duck' : 'block', gap / Math.abs(pr.vx) + (pr.multi ? 50 : 8));
         }
+      }
+      // 1b) the opponent fired a rushing SUPER: block it or jump over the dash (decided once, after the reaction delay)
+      if (seen.state === 'super' && op.state === 'super' && op.cfg.super.type === 'rush' && this.seenSuper !== g.frame - op.anim) {
+        this.seenSuper = g.frame - op.anim;
+        const r = Math.random();
+        if (r < T.block) this.setMode('block', 45); else if (r < T.block + 0.2 * T.d) this.setMode('jumpin', 60);
+      }
+      // 1c) the opponent called a GAMMA RAY: block it, or (skilled, with room) run from the lagging reticle during the telegraph
+      if (seen.state === 'super' && op.state === 'super' && op.cfg.super.type === 'beam' && this.seenSuper !== g.frame - op.anim) {
+        this.seenSuper = g.frame - op.anim;
+        const s = op.cfg.super, left = s.beamAt + s.beamFrames - op.anim, room = Math.max(me.x - 60, W - 60 - me.x);
+        if (op.anim < s.lockAt - 4 && room > 160 && chance(0.45 * T.d)) { this.beamDir = me.x - 60 > W - 60 - me.x ? 'left' : 'right'; this.setMode('beamdodge', left); }
+        else if (chance(T.block + 0.1)) this.setMode('block', left);
       }
       // 2) the opponent started an attack (seen late, like a human) and we are in its range
       //    (blocking is a faster, more reflexive reaction than choosing a counter-attack)
@@ -86,6 +106,7 @@
 
       // ---- pick a new plan when the current one runs out ----
       if (this.modeT <= 0) this.decide(me, op, g, T, dist, meWall);
+      if (this.mode === 'super' && !this.canSuper(me, op, g, dist)) this.mode = 'wait';
 
       // ---- execute the plan ----
       // spacing judgement: a low-skill CPU misjudges range (and whiffs) more often - it gives the player openings
@@ -94,6 +115,11 @@
       const attack = (k) => { inp[k] = true; this.atkCd = T.atkGap + rnd(0, 30); this.stats.attacks++; };
       switch (this.mode) {
         case 'block': inp.block = true; break;
+        case 'beamdodge': { // run until the beam has fired past us; if it caught us anyway, guard the rest
+          const B = op.beam; if (!B || op.state !== 'super') { this.modeT = 0; break; }
+          if (Math.abs(me.x - B.tx) < op.cfg.super.halfWidth + 60 || !B.locked) inp[this.beamDir] = true; else inp.block = op.anim >= op.cfg.super.beamAt;
+          break;
+        }
         case 'duck': inp.down = true; break;
         case 'wait': break;
         case 'retreat': if (!meWall) inp[away] = true; break;
@@ -126,17 +152,28 @@
           if (me.grounded && this.modeT > 40) { inp.up = true; inp[toward] = true; }
           else if (!me.grounded && dist < 165 && me.vy > 0) { attack('kick'); this.setMode('wait', 30); }
           break;
+        case 'super':
+          inp.special = true; this.stats.supers++; this.fullSince = null; this.setMode('wait', 30);
+          break;
         case 'special':
-          if (me.specialCd <= 0 && me.grounded && dist >= smin && dist <= smax) { inp.special = true; this.stats.specials++; this.atkCd = T.atkGap; }
+          if (!me.superReady && me.specialCd <= 0 && me.grounded && dist >= smin && dist <= smax) { inp.special = true; this.stats.specials++; this.atkCd = T.atkGap; }
           this.setMode(chance(0.5) ? 'wait' : 'space', rnd(20, 40));
           break;
       }
       return inp;
     }
 
+    // SUPER is sensible now: full meter held long enough, in the super's range, opponent on the ground and hittable,
+    // and (for a rush / beam) not into a guard
+    canSuper(me, op, g, dist) {
+      const s = me.cfg.super; if (!s || !me.superReady || this.fullSince == null || g.frame - this.fullSince < this.superWait) return false;
+      const [a, b] = s.aiRange || [0, 2000];
+      return me.grounded && dist >= a && dist <= b && op.grounded && !['ko', 'thrown', 'down'].includes(op.state) && !((s.type === 'rush' || s.type === 'beam') && op.blocking);
+    }
     decide(me, op, g, T, dist, meWall) {
       const sp = me.cfg.special, [smin, smax] = sp.aiRange || [0, 0], W = A.W;
-      const canSpecial = me.specialCd <= 0 && dist >= smin && dist <= smax && op.grounded;
+      if (this.canSuper(me, op, g, dist) && chance(T.superP)) return this.setMode('super', 1);
+      const canSpecial = !me.superReady && me.specialCd <= 0 && dist >= smin && dist <= smax && op.grounded;
       const ready = this.atkCd <= 0;
       this.combo = 0;
       // corner fairness: after ~1.5 s of pressure on a cornered player, usually back off and let them out

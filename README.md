@@ -10,6 +10,8 @@ A retro 2D arcade fighting game prototype in the browser: a parody of tech CEOs 
 
 **Mobile:** on-screen D-pad and PUNCH/KICK/BLK/SP buttons
 
+SUPER: fill the SUPER meter, then press SP (or I) — Musk: GAMMA RAY, Zuckerberg: METAVERSE TAKEDOWN.
+
 A parody game. Not affiliated with any real person or company.
 
 The font Press Start 2P is under the SIL Open Font License (`fonts/OFL.txt`).

@@ -127,6 +127,7 @@
         return P(out ? (air ? 'jkick' : 'kick1') : air ? 'jump' : 'kick0');
       }
       case 'special': return P(sp.specialPose ? sp.specialPose(t, f.cfg.special) : 'punch1');
+      case 'super': return P(sp.superPose ? sp.superPose(f, f.cfg.super) : 'punch1');
       case 'hit': return P('hit');
       case 'thrown': return Object.assign({}, P('hit'), { rot: -Math.floor(t * 0.22 / (Math.PI / 2)) % 4 });
       case 'ko': case 'down': return P(air || t < 5 ? 'fall' : 'lie');
@@ -246,6 +247,32 @@
       ctx.drawImage(S.cv, -AX, -AY);
     }
     ctx.restore();
+  };
+
+  // ---- SUPER visuals: VR pixel-glitch for glitch-type supers (blue afterimages under, scanline tears + RGB split over) ----
+  A.drawSuperFx = function (ctx, f, g, layer) {
+    const s = f.cfg.super, R = f.rush;
+    if (!s || !s.glitch || !R || !(R.ph === 'wind' || R.ph === 'dash' || (R.ph === 'combo' && R.t < 4))) return;
+    const K = A.S, t = g ? g.frame : 0;
+    if (layer === 'under') {
+      ctx.save();
+      for (let k = 3; k >= 1; k--) { // trailing afterimages, tinted by a blue overlay pass
+        const gh = Object.create(f); gh.x = f.x - f.facing * k * (R.ph === 'dash' ? 34 : 12);
+        ctx.globalAlpha = 0.5 - k * 0.12; A.drawFighter(ctx, gh, null);
+        ctx.globalAlpha = 0.35; ctx.fillStyle = k % 2 ? '#0058f8' : '#00e8d8';
+        const bx = Math.round(gh.x / K) - 22, by = Math.round(f.y / K) - 76;
+        for (let y = 0; y < 76; y += 2) ctx.fillRect(bx * K, (by + y) * K, 44 * K, K);
+      }
+      ctx.restore();
+      return;
+    }
+    const bx = Math.round(f.x / K), by = Math.round(f.y / K) - 78;
+    for (let k = 0; k < 7; k++) { // horizontal tear lines + stray pixels
+      const r = (t * 7 + k * 13) % 78, off = ((t * 3 + k * 5) % 9) - 4, len = 10 + (k * 11 + t) % 26;
+      ctx.fillStyle = ['#3cbcfc', '#0058f8', '#f878f8', '#fcfcfc'][k % 4];
+      ctx.fillRect((bx - len / 2 + off * 2) * K, (by + r) * K, len * K, K);
+      if (k % 2) ctx.fillRect((bx + off * 4 + 20) * K, (by + (r * 3) % 78) * K, 2 * K, 2 * K);
+    }
   };
 
   // ---- defeat animation: the round's loser kneels and cries comical cartoon tears ----

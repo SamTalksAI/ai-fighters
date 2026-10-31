@@ -16,18 +16,98 @@
     punch: { startup: 4, active: 4, recovery: 9, damage: 6, chip: 1, range: 112, y: -118, hitstun: 14, push: 5 },
     kick: { startup: 7, active: 5, recovery: 13, damage: 10, chip: 2, range: 136, y: -72, hitstun: 18, push: 8 },
   };
-  const BUSY = ['punch', 'kick', 'special', 'hit', 'blockstun', 'thrown', 'down', 'ko'];
+  const BUSY = ['punch', 'kick', 'special', 'super', 'hit', 'blockstun', 'thrown', 'down', 'ko'];
+  // SUPER meter (one super per fighter, fired with the normal special input when the meter is full).
+  // Gains: per point of damage dealt / taken, flat per blocked hit. Persists across the rounds of a match, reset per match.
+  // freeze = activation freeze (frames) with the darkened screen + portrait cut-in.
+  const SUPER = (A.SUPER = { max: 100, deal: 0.18, take: 0.13, block: 4.5, blockAtk: 2.5, roundLoss: 10, attack: 0, special: 1.5, freeze: 45 }); // tuned by tests/test_super_pacing.py: active player first full ~40-45 s of fight time
+  const clampX = (x) => Math.max(40, Math.min(W - 40, x));
+  // super move types; each fighter's cfg.super picks one and supplies its numbers (see js/fighters.js)
+  const SUPER_TYPES = (A.SUPER_TYPES = {
+    // a beam from orbit: a satellite tracks the target with a lagging reticle, locks, then a vertical beam slams down at the
+    // locked x for `beamFrames`, hitting every `every` frames (multi-hit, chip when blocked). Fair: jumping does not help,
+    // but running away during the whole telegraph (the reticle lags + a short gap after the lock) can dodge it.
+    beam: {
+      update(f, opp, g, s) {
+        const B = f.beam || (f.beam = { tx: clampX(opp.x), locked: false, hits: 0, landed: 0, burn: -99 });
+        const t = f.anim, bt = t - s.beamAt;
+        if (t === s.chargeAt) sfx(s.chargeSfx);
+        if (t < s.lockAt) B.tx += (clampX(opp.x) - B.tx) * s.track;
+        else if (!B.locked) { B.locked = true; sfx('lock'); }
+        if (bt === 0) sfx(s.beamSfx);
+        if (bt >= 0 && bt < s.beamFrames) {
+          g.shake = Math.max(g.shake, bt < 6 ? 12 : 5);
+          if (bt % s.every === 0 && B.hits < s.hits) {
+            B.hits++;
+            const last = B.hits === s.hits;
+            if (g.phase === 'fight' && Math.abs(opp.x - B.tx) <= s.halfWidth && !OUT.includes(opp.state)) {
+              const blocked = opp.blocking && opp.facing === -(Math.sign(opp.x - f.x) || 1);
+              g.hit(opp, f.x, { attacker: f, damage: (s.damage / s.hits) * f.cfg.stats.power, chip: s.chip / s.hits,
+                hitstun: last ? 34 : s.every + 6, push: last ? 9 : 1.2, y: opp.y - 90 - (B.hits % 2) * 30, isSuper: true, sfx: last ? 'boom' : 'zap' });
+              B.landed++; if (!blocked) B.burn = t;
+              if (last) { g.shake = 16; g.fx.push({ x: B.tx, y: GROUND - 20, by: GROUND, t: 0, col: '#b8f818' }); }
+            }
+          }
+        }
+        if (f.timer <= 0) { f.beam = null; f.setState('idle'); }
+      },
+    },
+    // a big multi-hit projectile: slows down while grinding through the target, chip damage when blocked
+    projectile: {
+      update(f, opp, g, s) {
+        if (!f.fired && f.anim >= s.fireAt) {
+          f.fired = true;
+          g.spawnProjectile(f, Object.assign({}, s.projectile, { multi: true, hitsLeft: s.hits, every: s.every, hitCd: 0,
+            damage: s.damage / s.hits, chip: s.chip / s.hits, isSuper: true, sfx: s.launchSfx }));
+        }
+        if (f.timer <= 0) f.setState('idle');
+      },
+    },
+    // dash (glitchy teleport-rush) into a multi-hit combo that ends in a throw; blockable on contact, avoidable by jumping
+    rush: {
+      update(f, opp, g, s) {
+        const R = f.rush || (f.rush = { ph: 'wind', t: 0, k: 0 });
+        R.t++;
+        if (g.phase !== 'fight') { f.rush = null; f.setState('idle'); return; }
+        if (R.ph === 'wind') { if (R.t >= s.windup) { R.ph = 'dash'; R.t = 0; sfx(s.dashSfx || 'glitch'); } }
+        else if (R.ph === 'dash') {
+          f.x = clampX(f.x + f.facing * s.dashSpeed); f.vx = 0;
+          const dx = (opp.x - f.x) * f.facing;
+          if (dx > 0 && dx <= s.reach && opp.y > GROUND - 30 && !OUT.includes(opp.state)) {
+            if (opp.blocking && opp.facing === -f.facing) { // blocked: chip + pushback, then a long, punishable recovery
+              g.hit(opp, f.x, { attacker: f, damage: 0, chip: s.chip, hitstun: 0, push: 9, y: f.y - 110, isSuper: true });
+              R.ph = 'recover'; R.t = 0;
+            } else { R.ph = 'combo'; R.t = 0; R.k = 0; sfx('punch'); }
+          } else if (R.t >= s.dashFrames) { R.ph = 'recover'; R.t = 0; }
+        } else if (R.ph === 'combo') {
+          // hold the victim in front of us (walls respected)
+          opp.x = clampX(f.x + f.facing * 138); f.x = clampX(opp.x - f.facing * 138); opp.vx = 0;
+          if (R.t % s.hitEvery === 1) {
+            if (R.k < s.hits.length) {
+              const kick = R.k % 2 === 1;
+              g.hit(opp, f.x, { attacker: f, damage: s.hits[R.k] * f.cfg.stats.power, chip: 0, hitstun: s.hitEvery + 12, push: 0,
+                y: f.y - (kick ? 72 : 118), unblockable: true, isSuper: true, sfx: kick ? 'kick' : 'punch' });
+              R.k++;
+            } else { g.tryGrab(f, { range: 400, damage: s.throwDamage, text: s.finisher, isSuper: true }); R.ph = 'recover'; R.t = 0; R.thrown = true; }
+          }
+        } else if (R.ph === 'recover') { if (R.t >= (R.thrown ? s.recoverHit : s.recover)) { f.rush = null; f.setState('idle'); } }
+      },
+    },
+  });
   const OUT = ['ko', 'thrown', 'down'];
   A.blankInput = () => ({ left: false, right: false, up: false, down: false, punch: false, kick: false, block: false, special: false });
 
   class Fighter {
-    constructor(cfg, x, facing) { this.cfg = cfg; this.maxHp = cfg.stats.hp; this.reset(x, facing); }
+    constructor(cfg, x, facing) { this.cfg = cfg; this.maxHp = cfg.stats.hp; this.meter = 0; this.supers = 0; this.reset(x, facing); }
     reset(x, facing) {
       Object.assign(this, { x, y: GROUND, vx: 0, vy: 0, facing, hp: this.maxHp, state: 'idle', anim: 0, timer: 0,
-        hasHit: false, fired: false, specialCd: 60, prev: A.blankInput() });
+        hasHit: false, fired: false, specialCd: 60, rush: null, beam: null, prev: A.blankInput() }); // meter is kept (per match)
     }
     get grounded() { return this.y >= GROUND; }
     get busy() { return BUSY.includes(this.state); }
+    // calling down the GAMMA RAY: can't be interrupted until the beam is over (punishable in the short recovery after)
+    get invuln() { const s = this.cfg.super; return this.state === 'super' && s.type === 'beam' && this.anim < s.beamAt + s.beamFrames; }
+    get superReady() { return !!this.cfg.super && this.meter >= SUPER.max; }
     get blocking() { return this.state === 'block' || this.state === 'blockstun'; }
     bodyTop() { return this.y - (this.state === 'crouch' ? 110 : 180); }
     setState(s, timer = 0) { if (this.state !== s) this.anim = 0; this.state = s; this.timer = timer; }
@@ -45,6 +125,8 @@
       } else if (st === 'special') {
         if (!this.fired && this.anim >= this.cfg.special.fireAt) { this.fired = true; this.cfg.special.run(this, g); }
         if (this.timer <= 0) this.setState('idle');
+      } else if (st === 'super') {
+        SUPER_TYPES[this.cfg.super.type].update(this, opp, g, this.cfg.super);
       } else if (st === 'hit' || st === 'blockstun' || st === 'down') {
         if (this.timer <= 0) this.setState('idle');
       } else if (st === 'thrown') {
@@ -54,11 +136,14 @@
       if (!this.busy) {
         if (this.grounded) this.facing = opp.x >= this.x ? 1 : -1;
         const s = this.cfg.stats;
-        if (pr('special') && this.specialCd <= 0 && this.grounded) {
-          this.setState('special', this.cfg.special.frames); this.fired = false; this.specialCd = this.cfg.special.cooldown; this.vx = 0;
+        if (pr('special') && this.grounded && this.superReady) { // full meter: the special input fires the SUPER
+          this.meter = 0; this.supers++; this.setState('super', this.cfg.super.frames || 999); this.fired = false; this.rush = null; this.beam = null; this.vx = 0;
+          g.superFlash(this);
+        } else if (pr('special') && this.specialCd <= 0 && this.grounded) {
+          this.setState('special', this.cfg.special.frames); this.fired = false; this.specialCd = this.cfg.special.cooldown; this.vx = 0; g.gainMeter(this, SUPER.special);
         } else if (pr('punch') || pr('kick')) {
           const k = pr('punch') ? 'punch' : 'kick', a = ATK[k];
-          this.setState(k, a.startup + a.active + a.recovery); this.hasHit = false;
+          this.setState(k, a.startup + a.active + a.recovery); this.hasHit = false; g.gainMeter(this, SUPER.attack);
           if (this.grounded) this.vx = 0;
         } else if (this.grounded) {
           if (inp.block) { this.setState('block'); this.vx = 0; }
@@ -89,24 +174,40 @@
   class Game {
     constructor(cfgA, cfgB, onOver) {
       this.f = [new Fighter(cfgA, 260, 1), new Fighter(cfgB, 700, -1)];
-      this.wins = [0, 0]; this.round = 0; this.frame = 0; this.onOver = onOver; this.shake = 0;
+      this.wins = [0, 0]; this.round = 0; this.frame = 0; this.onOver = onOver; this.shake = 0; this.freeze = 0; this.freezeT = 0; this.superBy = null;
       this.startRound();
     }
     startRound() {
       this.round++;
       this.f[0].reset(260, 1); this.f[1].reset(700, -1);
-      this.projectiles = []; this.fx = [];
+      this.projectiles = []; this.fx = []; this.freeze = 0; this.superBy = null;
       this.time = ROUND_SECS * 60; this.phase = 'intro'; this.phaseT = 90;
       this.msg = 'ROUND ' + this.round; this.sub = ''; this.endT = 0; this.roundWinner = -1;
     }
     other(f) { return f === this.f[0] ? this.f[1] : this.f[0]; }
 
     // shared combat API used by attacks and by fighter specials
+    // SUPER meter gain (fight phase only); plays a blip when it becomes full
+    gainMeter(f, n) {
+      if (!f || !f.cfg.super || this.phase !== 'fight' || !(n > 0)) return;
+      const was = f.meter; f.meter = Math.min(SUPER.max, f.meter + n);
+      if (was < SUPER.max && f.meter >= SUPER.max) { f.fullAt = this.frame; sfx('meter'); }
+    }
+    // super activation: brief freeze, darkened screen + portrait cut-in with the super's name (drawn in draw())
+    superFlash(f) {
+      if (this.msg === 'FIGHT!') this.msg = ''; // a super right after the bell: drop the FIGHT! banner so it never covers the move
+      this.freeze = SUPER.freeze; this.freezeT = 0; this.superBy = f; this.shake = 0;
+      this.fx.push({ x: f.x, y: f.y - 120, by: f.y, t: 0, col: '#fcfcfc' });
+      sfx(f.cfg.super.sting || 'super');
+    }
     hit(def, fromX, o) {
-      if (this.phase !== 'fight' || OUT.includes(def.state)) return;
+      if (this.phase !== 'fight' || OUT.includes(def.state) || def.invuln) return;
       const dir = Math.sign(def.x - fromX) || 1;
       const facingAttacker = def.facing === -dir;
       const blocked = def.blocking && facingAttacker && !o.unblockable;
+      const src = o.src || o.attacker;
+      if (blocked) { this.gainMeter(def, SUPER.block); if (!o.isSuper) this.gainMeter(src, SUPER.blockAtk + o.chip * SUPER.deal); }
+      else { this.gainMeter(def, o.damage * SUPER.take); if (!o.isSuper) this.gainMeter(src, o.damage * SUPER.deal); }
       this.pushback(def, o.attacker, dir, o.push * (blocked ? 0.85 : 1));
       if (blocked) {
         def.hp -= o.chip; def.setState('blockstun', 10); sfx('block');
@@ -135,15 +236,17 @@
       }
     }
     spawnProjectile(f, o) {
-      sfx('rocket');
+      sfx(o.sfx || 'rocket');
       const x = f.x + f.facing * (o.xOff || 55);
       this.projectiles.push({ ...o, owner: f, x, x0: x, y: f.y + o.yOff, by: f.y, vx: f.facing * o.speed, dir: f.facing });
     }
     tryGrab(f, o) {
       const opp = this.other(f), dx = (opp.x - f.x) * f.facing;
-      if (dx > 0 && dx < o.range && opp.grounded && !OUT.includes(opp.state)) {
-        opp.hp -= o.damage * f.cfg.stats.power; opp.setState('thrown'); opp.vy = -13; opp.vx = f.facing * 7; opp.y -= 1;
-        this.fx.push({ x: opp.x, y: opp.y - 120, by: opp.y, t: 0, col: '#f878f8', text: 'THROW!' }); this.shake = 10; sfx('throw');
+      if (dx > 0 && dx < o.range && opp.grounded && !OUT.includes(opp.state) && !opp.invuln) {
+        const dmg = o.damage * f.cfg.stats.power;
+        this.gainMeter(opp, dmg * SUPER.take); if (!o.isSuper) this.gainMeter(f, dmg * SUPER.deal);
+        opp.hp -= dmg; opp.setState('thrown'); opp.vy = -13; opp.vx = f.facing * 7; opp.y -= 1;
+        this.fx.push({ x: opp.x, y: opp.y - 120, by: opp.y, t: 0, col: '#f878f8', text: o.text || 'THROW!' }); this.shake = o.isSuper ? 16 : 10; sfx('throw');
         this.checkKO(opp, f.facing);
         return true;
       }
@@ -156,6 +259,7 @@
       if (w >= 0) this.wins[w]++;
       sfx('ko');
       this.matchPoint = w >= 0 && this.wins[w] >= 2;
+      if (w >= 0 && !this.matchPoint) this.gainMeter(this.f[1 - w], SUPER.roundLoss); // comeback: the round loser carries a meter bonus into the next round
       this.phase = 'ko'; this.phaseT = this.matchPoint ? 270 : 150; this.roundWinner = w; this.endT = 0;
       this.msg = kind === 'KO' ? 'K.O.!' : 'TIME!';
       this.sub = w >= 0 ? this.f[w].cfg.name + ' wins the round' : 'Draw';
@@ -163,6 +267,11 @@
 
     update(inputs) {
       this.frame++;
+      if (this.freeze > 0) { // super activation freeze: nothing moves, the round clock stops
+        this.freeze--; this.freezeT++; for (const e of this.fx) e.t++;
+        if (!this.freeze) this.superBy = null;
+        return;
+      }
       if (this.shake > 0) this.shake--;
       const [a, b] = this.f, blank = A.blankInput();
       if (this.phase === 'intro') {
@@ -183,12 +292,25 @@
           }
         }
         for (const p of this.projectiles) {
-          p.x += p.vx;
-          const t = this.other(p.owner);
-          if (!p.dead && Math.abs(p.x - t.x) < p.w / 2 + 22 && p.y >= t.bodyTop() && p.y <= t.y) {
-            p.dead = true; this.hit(t, p.x - p.dir * 10, { damage: p.damage * p.owner.cfg.stats.power, chip: p.chip, hitstun: 20, push: 9, y: p.y, sfx: 'kick' });
+          const t = this.other(p.owner), touch = () => Math.abs(p.x - t.x) < p.w / 2 + 22 && p.y >= t.bodyTop() && p.y <= t.y;
+          if (p.multi) { // super projectile: several hits while it grinds through the target
+            if (p.hitCd > 0) p.hitCd--;
+            const on = touch() && !OUT.includes(t.state);
+            p.x += on ? p.vx * (p.slow || 0.3) : p.vx;
+            if (on && p.hitCd <= 0 && !p.dead) {
+              const last = --p.hitsLeft <= 0;
+              this.hit(t, p.x - p.dir * 10, { src: p.owner, damage: p.damage * p.owner.cfg.stats.power, chip: p.chip, hitstun: last ? 30 : p.every + 10,
+                push: last ? 11 : 2.2, y: p.y, sfx: last ? 'boom' : 'kick', isSuper: true });
+              p.hitCd = p.every; this.shake = last ? 14 : 5;
+              if (last) { p.dead = true; for (let k = 0; k < 3; k++) this.fx.push({ x: p.x + p.dir * (k * 30 - 20), y: p.y + (k - 1) * 22, by: p.by, t: -k * 3, col: '#f83800' }); }
+            }
+          } else {
+            p.x += p.vx;
+            if (!p.dead && touch()) {
+              p.dead = true; this.hit(t, p.x - p.dir * 10, { src: p.owner, damage: p.damage * p.owner.cfg.stats.power, chip: p.chip, hitstun: 20, push: 9, y: p.y, sfx: 'kick' });
+            }
           }
-          if (p.x < -80 || p.x > W + 80) p.dead = true;
+          const m = (p.w || 0) / 2 + 40; if (p.x < -m || p.x > W + m) p.dead = true;
         }
         this.projectiles = this.projectiles.filter((p) => !p.dead);
         if (--this.time <= 0 && this.phase === 'fight') this.endRound('TIME');
@@ -214,17 +336,62 @@
       A.drawBackground(ctx, this);
       // the fighter being hit / thrown is drawn first so the attacker's fist overlaps it
       const order = [...this.f].sort((p, q) => (p.state === 'punch' || p.state === 'kick' || p.state === 'special') - (q.state === 'punch' || q.state === 'kick' || q.state === 'special'));
-      for (const f of order) A.drawFighter(ctx, f, this);
+      for (const f of this.f) if (f.state === 'super' && f.cfg.super.drawBack) f.cfg.super.drawBack(ctx, f, this); // e.g. darkened stage, satellite
+      for (const f of order) {
+        if (f.state === 'super' && A.drawSuperFx) A.drawSuperFx(ctx, f, this, 'under');
+        A.drawFighter(ctx, f, this);
+        if (f.state === 'super' && A.drawSuperFx) A.drawSuperFx(ctx, f, this, 'over');
+      }
+      for (const f of this.f) if (f.state === 'super' && f.cfg.super.drawTop) f.cfg.super.drawTop(ctx, f, this); // e.g. the beam itself
       if (A.drawTears) for (const f of this.f) A.drawTears(ctx, f, this);
       for (const p of this.projectiles) p.draw(ctx, { ...p, y: vis(p.y, p.by) }, this.frame);
       for (const e of this.fx) {
         const y = vis(e.y, e.by);
         if (e.text) { A.pixelText(ctx, e.text, e.x, y - e.t * 2, 20, e.col, 'center'); continue; }
-        A.drawSpark(ctx, e.x, y, e.t, e.col, e.block);
+        if (e.t >= 0) A.drawSpark(ctx, e.x, y, e.t, e.col, e.block);
       }
+      if (this.freeze > 0 && this.superBy) this.drawCutin(ctx, sh);
       ctx.restore();
       A.quantize(ctx);
       this.drawHud(ctx);
+    }
+
+    // SF-style super activation: screen darkens (flash first), the attacker stays lit, a coloured band sweeps across with the
+    // fighter's portrait sliding through it and the super's name in big condensed title type. Low-res pixel coordinates.
+    drawCutin(ctx, sh) {
+      const f = this.superBy, s = f.cfg.super, t = this.freezeT, i = this.f.indexOf(f), dir = i ? -1 : 1, D = SUPER.freeze;
+      const ease = (u) => 1 - Math.pow(1 - Math.max(0, Math.min(1, u)), 3);
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.fillStyle = t < 3 ? 'rgba(252,252,252,0.85)' : 'rgba(0,0,8,0.68)'; ctx.fillRect(0, 0, LW, LH);
+      ctx.setTransform(1 / S, 0, 0, 1 / S, sh, sh); A.drawFighter(ctx, f, this); ctx.setTransform(1, 0, 0, 1, 0, 0); // the attacker stays lit
+      const open = ease(t / 7) * (1 - ease((t - (D - 7)) / 7)), cy = 96, hh = Math.round(36 * open);
+      if (hh < 2) return;
+      const top = cy - hh, bot = cy + hh, col = s.color || '#e45c10', col2 = s.color2 || '#f8b800';
+      ctx.save(); ctx.beginPath(); ctx.rect(0, top, LW, bot - top); ctx.clip();
+      ctx.fillStyle = col; ctx.fillRect(0, top, LW, bot - top);
+      for (let k = 0; k < 14; k++) { // speed lines streaming against the slide
+        const y = top + ((k * 37) % (bot - top)), len = 30 + (k * 23) % 50, x = (((k * 71 - dir * t * 14) % (LW + 80)) + LW + 80) % (LW + 80) - 40;
+        ctx.fillStyle = k % 3 ? col2 : '#fcfcfc'; ctx.fillRect(x, y, len, 1);
+      }
+      // portrait slides in fast, drifts, then shoots out the far side
+      const P = 92, inX = ease(t / 9), outX = ease((t - (D - 9)) / 9);
+      const px0 = i ? LW + 10 : -P - 10, pxRest = i ? LW - P - 26 : 26, pxOut = i ? -P - 10 : LW + 10;
+      const px = Math.round(px0 + (pxRest - px0) * inX + dir * t * 0.4 + (pxOut - pxRest) * outX);
+      A.drawPortrait(ctx, f.cfg, px, cy - P / 2 + 6, { size: 128, scale: P / 128, face: dir, frame: '#fcfcfc' });
+      ctx.restore();
+      ctx.fillStyle = '#fcfcfc'; ctx.fillRect(0, top - 1, LW, 1); ctx.fillRect(0, bot, LW, 1);
+      ctx.fillStyle = '#100818'; ctx.fillRect(0, top - 2, LW, 1); ctx.fillRect(0, bot + 1, LW, 1);
+      // super name, slides in from the opposite side
+      const nameIn = ease((t - 4) / 10), side = i ? 'right' : 'left', nx = i ? LW - P - 38 - (1 - nameIn) * 60 : P + 38 + (1 - nameIn) * 60;
+      ctx.globalAlpha = nameIn * (1 - outX);
+      A.pixelText(ctx, 'SUPER!', nx, cy - 30, 8, '#fcfcfc', side);
+      const TF = '"Bebas Neue", Impact, "Arial Narrow", sans-serif', nm = s.name.toUpperCase();
+      ctx.letterSpacing = '2px'; ctx.font = '44px ' + TF;
+      const fit = Math.min(44, Math.floor(44 * (LW - P - 70) / ctx.measureText(nm).width));
+      ctx.font = fit + 'px ' + TF; ctx.textAlign = side; ctx.textBaseline = 'alphabetic';
+      ctx.fillStyle = '#100818'; ctx.fillText(nm, nx + 2, cy + 18 + 2);
+      ctx.fillStyle = col2; ctx.fillText(nm, nx, cy + 18);
+      ctx.letterSpacing = '0px'; ctx.globalAlpha = 1;
     }
 
     drawHud(ctx) { // drawn after quantize, in low-res pixel coordinates
@@ -241,6 +408,20 @@
         T(ctx, f.cfg.name.toUpperCase(), tx, 18, 8, '#fcfcfc', al);
         const ready = f.specialCd <= 0;
         T(ctx, (i ? 'CPU' : 'P1') + (ready ? ' SP OK' : ''), tx, 28, 8, ready ? '#f878f8' : '#bcbcbc', al);
+        if (f.cfg.super) { // SUPER meter under the name line; flashes when full
+          const mw = 72, mx = i ? x + w - mw : x, my = 38, full = f.meter >= SUPER.max, mf = Math.round(mw * f.meter / SUPER.max);
+          const fl = full && (this.frame >> 2) % 2;
+          ctx.fillStyle = full ? (fl ? '#fcfcfc' : '#f8b800') : '#100818'; ctx.fillRect(mx - 2, my - 2, mw + 4, 10);
+          ctx.fillStyle = '#100818'; ctx.fillRect(mx - 1, my - 1, mw + 2, 8);
+          ctx.fillStyle = '#24188c'; ctx.fillRect(mx, my, mw, 6);
+          const c1 = full ? ['#f8b800', '#f878f8', '#00e8d8'][(this.frame >> 3) % 3] : '#0078f8', c2 = full ? '#fcfcfc' : '#3cbcfc';
+          ctx.fillStyle = c1; ctx.fillRect(i ? mx + mw - mf : mx, my, mf, 6);
+          ctx.fillStyle = c2; ctx.fillRect(i ? mx + mw - mf : mx, my, mf, 2);
+          for (let k = 1; k < 4; k++) { ctx.fillStyle = '#100818'; ctx.fillRect(mx + Math.round(mw * k / 4), my + 4, 1, 2); }
+          const lx = i ? mx - 6 : mx + mw + 6, la = i ? 'right' : 'left';
+          T(ctx, full ? 'SUPER!' : 'SUPER', lx, my - 1, 8, full ? (fl ? '#fcfcfc' : '#f8b800') : '#7c7c7c', la);
+          if (full && !i && A.superKeyHint && this.phase === 'fight' && (this.frame >> 4) % 2) T(ctx, A.superKeyHint, mx, my + 10, 8, '#f8b800', 'left');
+        }
         for (let k = 0; k < 2; k++) { // round-win pips
           const px = i ? x + k * 9 : x + w - 7 - k * 9;
           ctx.fillStyle = '#000000'; ctx.fillRect(px, 28, 7, 7);
@@ -250,7 +431,7 @@
       ctx.fillStyle = '#100818'; ctx.fillRect(cx - 17, 2, 34, 22);
       ctx.fillStyle = '#f8b800'; ctx.fillRect(cx - 17, 2, 34, 1); ctx.fillRect(cx - 17, 23, 34, 1);
       T(ctx, String(Math.ceil(this.time / 60)).padStart(2, '0'), cx, 5, 16, '#fcfcfc', 'center');
-      if (this.msg) {
+      if (this.msg && !(this.freeze > 0)) {
         T(ctx, this.msg, cx, 72, this.msg.length > 6 ? 16 : 32, '#f8b800', 'center', '#e40058');
         if (this.sub) T(ctx, this.sub.toUpperCase(), cx, 116, 8, '#fcfcfc', 'center');
       }

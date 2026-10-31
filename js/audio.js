@@ -61,6 +61,18 @@
     ko: () => { tone('square', 440, 50, 1.0, 0.13); tone('triangle', 220, 30, 1.1, 0.2); },
     round: () => { tone('square', 523, 523, 0.1, 0.09); tone('square', 659, 659, 0.1, 0.09, 0.11); tone('square', 784, 784, 0.22, 0.09, 0.22); },
     select: () => tone('square', 660, 1320, 0.09, 0.09),
+    // SUPER: activation sting (impact + rising power chord), meter-full chime, VR glitch dash, final blast
+    super: () => { noise(0.18, 0.4, 5000); tone('square', 98, 98, 0.5, 0.12, 0.04); tone('sawtooth', 196, 784, 0.55, 0.06, 0.05);
+      [523, 659, 784, 1047].forEach((f, i) => tone('square', f, f, 0.1, 0.07, 0.12 + i * 0.07)); },
+    meter: () => { tone('square', 784, 784, 0.06, 0.07); tone('square', 1175, 1175, 0.06, 0.07, 0.07); tone('square', 1568, 1568, 0.12, 0.06, 0.14); },
+    // GAMMA RAY: rising charge hum (satellite powering up), target-lock beeps, the beam (sizzling roar + falling zap), per-hit zap
+    gammaCharge: () => { tone('sawtooth', 55, 220, 0.6, 0.06); tone('square', 110, 440, 0.6, 0.04); for (let i = 0; i < 5; i++) tone('triangle', 660 + i * 120, 700 + i * 120, 0.05, 0.05, i * 0.11); },
+    lock: () => { tone('square', 1760, 1760, 0.05, 0.07); tone('square', 1760, 1760, 0.05, 0.07, 0.08); },
+    gammaBeam: () => { noise(0.25, 0.5, 6000); noise(1.1, 0.32, 2600, 0.05); tone('sawtooth', 1400, 90, 0.45, 0.09); tone('square', 62, 58, 1.0, 0.09, 0.03); tone('triangle', 90, 30, 1.1, 0.16, 0.05);
+      for (let i = 0; i < 8; i++) tone('square', 900 - i * 70, 300 - i * 20, 0.06, 0.04, 0.1 + i * 0.12); },
+    zap: () => { noise(0.08, 0.3, 7000); tone('square', 1200, 200, 0.09, 0.08); },
+    glitch: () => { for (let i = 0; i < 6; i++) tone('square', 200 + ((i * 677) % 1500), 120 + ((i * 331) % 900), 0.035, 0.06, i * 0.035); noise(0.2, 0.15, 6000); },
+    boom: () => { noise(0.6, 0.45, 500); tone('triangle', 120, 30, 0.6, 0.2); },
     pause: () => { tone('square', 988, 988, 0.05, 0.07); tone('square', 659, 659, 0.08, 0.07, 0.06); },
   };
   A.sfx = {

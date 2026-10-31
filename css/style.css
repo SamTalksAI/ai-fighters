@@ -67,6 +67,11 @@ body.touch #controls{display:flex;flex:none;height:230px;max-width:520px;margin-
 .act{width:68px;height:68px;font-size:9px;touch-action:none;border:4px solid var(--wht);box-shadow:4px 4px 0 var(--blk)}
 .act.on{transform:translate(3px,3px);box-shadow:none;filter:brightness(1.4)}
 #btn-punch{background:var(--org)}#btn-kick{background:#0058f8}#btn-block{background:#00a800}#btn-special{background:#940084}
+/* SUPER ready: the SP button turns gold, pulses and glows (meter full) */
+#btn-special.super{background:var(--yel);color:var(--blk);font-size:8px;border-color:#fff;animation:supglow .5s steps(2) infinite}
+@keyframes supglow{0%{box-shadow:4px 4px 0 var(--blk),0 0 0 3px #e40058,0 0 14px 6px #f8b800}100%{box-shadow:4px 4px 0 var(--blk),0 0 0 3px #00e8d8,0 0 22px 10px #f878f8;filter:brightness(1.25)}}
+#btn-special.super.on{transform:translate(3px,3px);filter:brightness(1.4)}
+.card small.sup{color:var(--yel)}
 
 /* landscape phones: controls overlay the game */
 @media (orientation:landscape){

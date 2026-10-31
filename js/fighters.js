@@ -41,6 +41,7 @@
   ];
 
 
+
   A.FIGHTERS = [
     {
       id: 'musk', name: 'Elon Musk', bio: 'Rocket guy. Posts at 3am.',
@@ -49,6 +50,15 @@
       special: {
         name: 'Mars Rocket', frames: 40, fireAt: 14, cooldown: 150, aiRange: [180, 2000],
         run: (f, g) => g.spawnProjectile(f, { speed: 9, damage: 14, chip: 3, w: 110, h: 40, yOff: -125, xOff: 90, draw: drawRocket }),
+      },
+      // SUPER (special input with a full meter): GAMMA RAY from orbit. Musk points at the sky, a satellite tracks the
+      // opponent (lagging reticle), locks at `lockAt`, then a vertical beam slams down at `beamAt` for `beamFrames`,
+      // `hits` hits (one every `every` frames). Total damage = damage * power (~32%); blocked = `chip` total.
+      // Jumping does not help; running away during the whole telegraph can dodge it (reticle lag + gap after the lock).
+      super: {
+        name: 'Gamma Ray', type: 'beam', frames: 114, chargeAt: 4, lockAt: 26, beamAt: 38, beamFrames: 60, every: 12, hits: 5,
+        track: 0.1, halfWidth: 76, damage: 32, chip: 8, aiRange: [0, 2000], color: '#00a800', color2: '#b8f818',
+        chargeSfx: 'gammaCharge', beamSfx: 'gammaBeam', drawBack: drawGammaBack, drawTop: drawGammaTop,
       },
       sprite: {
         ramps: {
@@ -73,6 +83,7 @@
           d.px(c[0], c[1] + 3, r);
         },
         specialPose: (t, sp) => (t < sp.fireAt ? 'spWind' : t < sp.fireAt + 14 ? 'spLaunch' : 'punch0'),
+        superPose: (f, s) => (f.anim < 2 || f.anim >= s.beamAt + s.beamFrames + 6 ? 'punch0' : 'win'), // fist to the sky: calling the satellite
         poses: {
           spWind: { hip: [-5, -46], sh: [-7, -78], ff: [16, -4], fb: [-15, -4], hf: [20, -74], hb: [-18, -103], prop: { grid: 'rocket', anchor: [12, 4], hand: 'hb' } },
           spLaunch: { hip: [2, -46], sh: [9, -78], ff: [21, -4], fb: [-12, -4], hf: [42, -82], hb: [4, -66] },
@@ -87,6 +98,13 @@
       special: {
         name: 'Jiu-Jitsu Throw', frames: 40, fireAt: 8, cooldown: 150, aiRange: [0, 150],
         run: (f, g) => g.tryGrab(f, { range: 150, damage: 20 }),
+      },
+      // SUPER: glitchy VR dash (afterimages) into a 3-hit jiu-jitsu combo (unblockable once it connects) ending in a throw.
+      // Blocked on contact = chip + long recovery; a jump goes over the dash. Total ~ (4+4+5+14) * power 1.1 = ~30%.
+      super: {
+        name: 'Metaverse Takedown', type: 'rush', windup: 6, dashFrames: 24, dashSpeed: 15, reach: 150, hits: [4, 4, 5], hitEvery: 9,
+        throwDamage: 14, chip: 6, recover: 34, recoverHit: 22, finisher: 'TAKEDOWN!', aiRange: [140, 420], glitch: true,
+        color: '#0058f8', color2: '#3cbcfc', dashSfx: 'glitch',
       },
       sprite: {
         ramps: {
@@ -113,6 +131,12 @@
             d.cap(add(k, J.p, 1), add(add(k, J.u, -7), J.p, 2.5), 1.1, 1, R.belt)]);
         },
         specialPose: (t, sp) => (t < sp.fireAt ? 'spGrab' : t < sp.fireAt + 18 ? 'spHeave' : 'punch0'),
+        superPose: (f, s) => {
+          const R = f.rush;
+          if (!R || R.ph === 'wind' || R.ph === 'dash') return 'spGrab';
+          if (R.ph === 'combo') return R.t % s.hitEvery < 6 && R.t > 0 ? (R.k % 2 ? 'punch1' : 'kick1') : 'punch0';
+          return R.thrown && R.t < 18 ? 'spHeave' : 'punch0';
+        },
         poses: {
           spGrab: { hip: [2, -44], sh: [11, -73], ff: [21, -4], fb: [-12, -4], hf: [36, -66], hb: [30, -62], armsFront: true },
           spHeave: { hip: [-2, -42], sh: [-9, -73], ff: [18, -4], fb: [-17, -4], hf: [-8, -100], hb: [1, -98], armsFront: true, head: [1, 1] },
@@ -121,6 +145,117 @@
       },
     },
   ];
+
+  // ---- SUPER: GAMMA RAY from orbit (drawn in low-res px; ctx transform = world -> low-res) ----
+  // satellite: generic flat-panel comms sat (no logos), two solar wings, gamma emitter underneath. 46 x 12 low-res px.
+  const SAT = (() => {
+    const rows = [];
+    for (let r = 0; r < 12; r++) {
+      let row = '';
+      for (let c = 0; c < 46; c++) {
+        const wing = (c <= 15 || c >= 30) && r >= 1 && r <= 7, body = c >= 18 && c <= 27 && r <= 8;
+        if (wing) row += r === 1 || r === 7 || c === 0 || c === 15 || c === 30 || c === 45 ? 'k' : c % 4 === 3 || r === 4 ? 'G' : (c % 4 === 0 && (r === 2 || r === 5)) ? 'B' : 'b';
+        else if ((c === 16 || c === 17 || c === 28 || c === 29) && (r === 3 || r === 4)) row += 'g';
+        else if (body) row += r === 0 || r === 8 || c === 18 || c === 27 ? 'k' : r <= 2 ? 'w' : r === 5 ? 'y' : 'g';
+        else if (r === 9 && c >= 20 && c <= 25) row += 'G';
+        else if (r === 10 && c >= 21 && c <= 24) row += 'e';
+        else if (r === 11 && c >= 22 && c <= 23) row += 'E';
+        else row += '.';
+      }
+      rows.push(row);
+    }
+    return rows;
+  })();
+  const SAT_COLS = { k: '#100818', b: '#24188c', B: '#3cbcfc', G: '#545464', g: '#a4a4b4', w: '#fcfcfc', y: '#f8b800' };
+  const GR = { dark: '#005800', mid: '#00a800', hi: '#58d854', lime: '#b8f818', pale: '#d8f878', white: '#fcfcfc', red: '#f83800' };
+  const SAT_Y = 44, EMIT_Y = SAT_Y + 24, FLOOR_Y = () => Math.round(A.GROUND / A.S); // satellite (drawn 2x: 92 x 24 low-res px) sits just under the HUD
+  const gammaBox = (ctx) => { const K = A.S; return (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x) * K, Math.round(y) * K, Math.max(1, Math.round(w)) * K, Math.max(1, Math.round(h)) * K); }; };
+  function gammaDark(f, s) { // stage dim level 0..1
+    const t = f.anim, end = s.beamAt + s.beamFrames;
+    return t < 10 ? t / 10 : t < end ? 1 : Math.max(0, 1 - (t - end) / 12);
+  }
+  // under the fighters: darkened stage, satellite, uplink waves from Musk's fist, targeting laser
+  function drawGammaBack(ctx, f, g) {
+    const s = f.cfg.super, B = f.beam, t = f.anim, K = A.S, box = gammaBox(ctx); if (!B) return;
+    const dark = gammaDark(f, s), bt = t - s.beamAt, firing = bt >= 0 && bt < s.beamFrames;
+    ctx.fillStyle = `rgba(0,0,16,${0.74 * dark})`; ctx.fillRect(-40, -40, A.W + 80, A.H + 80);
+    if (firing) { ctx.fillStyle = 'rgba(0,120,0,0.12)'; ctx.fillRect(-40, -40, A.W + 80, A.H + 80); }
+    const sx = Math.round(B.tx / K), drop = Math.max(0, 1 - t / 10), sy = Math.round(SAT_Y - 34 * drop * drop);
+    // uplink chevrons rising from Musk's raised fist
+    if (t >= 2 && t < s.lockAt + 4) for (let k = 0; k < 3; k++) {
+      const a = (t * 2 + k * 9) % 27, ux = Math.round(f.x / K) + f.facing * 5, uy = Math.round(f.y / K) - 108 - a; // just above the raised fist
+      const w = 3 + (a >> 3), c = a < 14 ? GR.lime : GR.mid;
+      for (let i = 0; i <= w; i++) { box(ux - i, uy + i, 1, 1, c); box(ux + i, uy + i, 1, 1, c); }
+    }
+    // satellite (emitter glows hotter as it charges)
+    const heat = t < s.beamAt ? (t >> 2) % 2 ? GR.lime : GR.hi : GR.white;
+    const cols = Object.assign({ e: heat, E: t < s.beamAt ? GR.mid : GR.pale }, SAT_COLS);
+    for (let r = 0; r < SAT.length; r++) for (let c = 0; c < SAT[r].length; c++) { const col = cols[SAT[r][c]]; if (col) box(sx - 46 + c * 2, sy + r * 2, 2, 2, col); }
+    box(sx - 1, sy - 5, 1, 5, SAT_COLS.G); // antenna + blinking beacon
+    if (t < s.beamAt && (t >> 3) % 2) box(sx - 2, sy - 7, 3, 3, GR.red);
+    // targeting laser (dashed) from the emitter to the reticle
+    if (t >= s.chargeAt && t < s.beamAt) {
+      const ry = Math.round((A.GROUND - 95) / K), col = B.locked ? (t % 4 < 2 ? GR.red : GR.white) : GR.hi;
+      for (let y = sy + 24 + ((t * 2) % 6); y < ry - 16; y += 6) box(sx, y, 1, 3, col);
+    }
+  }
+  // over the fighters: reticle, the beam (core / glow / scanlines / particles), ground impact, flash, burning victim
+  let burnCv = null;
+  function drawGammaTop(ctx, f, g) {
+    const s = f.cfg.super, B = f.beam, t = f.anim, K = A.S, box = gammaBox(ctx); if (!B) return;
+    const sx = Math.round(B.tx / K), gy = FLOOR_Y(), bt = t - s.beamAt;
+    // reticle: green brackets closing in while tracking, red/white + LOCK once locked
+    if (t >= s.chargeAt && bt < 4) {
+      const ry = Math.round((A.GROUND - 95) / K), r = B.locked ? 15 : Math.round(15 + (s.lockAt - t) * 0.7);
+      const col = B.locked ? (t % 4 < 2 ? GR.red : GR.white) : GR.lime, L = 6;
+      for (const [dx, dy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+        const cx = sx + dx * r, cy = ry + dy * r;
+        box(dx < 0 ? cx : cx - L + 1, cy, L, 1, col); box(cx, dy < 0 ? cy : cy - L + 1, 1, L, col);
+      }
+      box(sx - 7, ry, 4, 1, col); box(sx + 4, ry, 4, 1, col); box(sx, ry - 7, 1, 4, col); box(sx, ry + 4, 1, 4, col);
+      if (B.locked) A.pixelText(ctx, 'LOCK', sx * K, (ry - r - 9) * K, 14, col, 'center');
+    }
+    if (bt < 0) return;
+    const fadeLen = 10, fade = bt < s.beamFrames ? 1 : 1 - (bt - s.beamFrames) / fadeLen; if (fade <= 0) return;
+    const slam = bt < 5 ? 1.35 : 1, p = Math.sin(bt * 0.7), yb = Math.round(EMIT_Y + (gy + 2 - EMIT_Y) * Math.min(1, (bt + 1) / 4));
+    const ow = (30 + 3 * p) * slam * fade, mw = (17 + 2 * p) * slam * fade, cw = (7 + (bt % 4 < 2 ? 1 : 0)) * slam * fade;
+    ctx.save();
+    ctx.globalAlpha = 0.55; // outer glow: dithered scanlines with wobbling edges
+    for (let y = EMIT_Y; y < yb; y++) if ((y + bt) % 2 === 0) { const w = ow + Math.sin(y * 0.31 + bt * 0.5) * 2.5; box(sx - w, y, w * 2, 1, (y >> 1) % 3 ? GR.mid : GR.dark); }
+    ctx.globalAlpha = 0.85;
+    for (let y = EMIT_Y; y < yb; y++) { const w = mw + Math.sin(y * 0.5 - bt * 0.9) * 1.2; box(sx - w, y, w * 2, 1, GR.hi); }
+    ctx.globalAlpha = 1;
+    box(sx - cw - 1, EMIT_Y, (cw + 1) * 2, yb - EMIT_Y, GR.pale); box(sx - cw + 2, EMIT_Y, Math.max(1, cw * 2 - 4), yb - EMIT_Y, GR.white);
+    for (let k = 0; k < 6; k++) { const y = EMIT_Y + ((bt * 7 + k * 23) % Math.max(1, yb - EMIT_Y)); box(sx - mw, y, mw * 2, 1, GR.white); } // racing bands
+    for (let k = 0; k < 22; k++) { // particles fizzing up and down the beam
+      const span = Math.max(1, ow * 2), x = sx - ow + ((k * 53 + bt * (k % 3 + 1)) % span), y = yb - ((bt * (3 + (k % 4)) + k * 37) % Math.max(1, yb - EMIT_Y));
+      box(x, y, 1, k % 3 ? 1 : 2, k % 2 ? GR.lime : GR.white);
+    }
+    // emitter flare
+    for (let r = 6; r >= 0; r -= 2) { const w = (r + 4 + (bt % 3)) * fade; box(sx - w, EMIT_Y - 2 + (6 - r) / 2, w * 2, r ? 2 : 1, r > 3 ? GR.hi : GR.white); }
+    // ground impact: glowing pool + debris arcs
+    if (yb >= gy) {
+      for (let dy = -7; dy <= 3; dy++) { const w = (ow + 16 + p * 3) * Math.sqrt(Math.max(0, 1 - (dy / 8) ** 2)) * fade; box(sx - w, gy + dy, w * 2, 1, dy < -4 ? GR.mid : dy < 0 ? GR.hi : GR.lime); }
+      box(sx - ow * 0.8, gy - 2, ow * 1.6, 3, GR.white);
+      for (let k = 0; k < 14; k++) {
+        const life = (bt * 2 + k * 7) % 22, side = k % 2 ? 1 : -1, x = sx + side * (ow * 0.6 + life * (2 + (k % 3))), y = gy - life * (2 + (k % 4)) * 0.8 + life * life * 0.12;
+        if (y < gy + 1) box(x, y, 1, 1, life < 8 ? GR.white : GR.lime);
+      }
+    }
+    ctx.restore();
+    // victim burn: green / white X-ray flicker of the fighter that just took a beam hit
+    const v = g.f.find((o) => o !== f);
+    if (v && t - B.burn < 10 && v.state === 'hit') {
+      const cv = ctx.canvas; burnCv = burnCv || document.createElement('canvas');
+      if (burnCv.width !== cv.width || burnCv.height !== cv.height) { burnCv.width = cv.width; burnCv.height = cv.height; }
+      const o = burnCv.getContext('2d'); o.setTransform(1, 0, 0, 1, 0, 0); o.clearRect(0, 0, burnCv.width, burnCv.height);
+      o.setTransform(ctx.getTransform()); o.imageSmoothingEnabled = false; A.drawFighter(o, v, null);
+      o.setTransform(1, 0, 0, 1, 0, 0); o.globalCompositeOperation = 'source-atop'; o.fillStyle = (t >> 1) % 2 ? GR.lime : GR.white; o.fillRect(0, 0, burnCv.width, burnCv.height); o.globalCompositeOperation = 'source-over';
+      ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = (t >> 1) % 2 ? 0.8 : 0.6; ctx.drawImage(burnCv, 0, 0); ctx.restore();
+    }
+    if (bt < 2) { ctx.fillStyle = 'rgba(252,252,252,0.85)'; ctx.fillRect(-40, -40, A.W + 80, A.H + 80); } // slam flash
+    else if (bt < 5) { ctx.fillStyle = 'rgba(184,248,24,0.3)'; ctx.fillRect(-40, -40, A.W + 80, A.H + 80); }
+  }
 
   function add(a, b, k = 1) { return [a[0] + b[0] * k, a[1] + b[1] * k]; }
 

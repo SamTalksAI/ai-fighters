@@ -33,7 +33,7 @@
     const b = document.createElement('button');
     b.className = 'card'; b.id = 'pick-' + cfg.id;
     b.innerHTML = `<canvas width="136" height="116"></canvas><b>${cfg.name}</b><small>${cfg.bio}</small>
-      <small>Special: ${cfg.special.name}</small><small>SPD ${cfg.stats.speed} · PWR ${cfg.stats.power}</small>`;
+      <small>Special: ${cfg.special.name}</small>${cfg.super ? `<small class="sup">Super: ${cfg.super.name}</small>` : ''}<small>SPD ${cfg.stats.speed} · PWR ${cfg.stats.power}</small>`;
     // low-res pixel preview, same renderer + palette as in the fight
     const c = b.querySelector('canvas').getContext('2d', { willReadFrequently: true });
     A.loadArt([cfg]).then(() => { // drawn once the image art is in (falls back to procedural if it failed)
@@ -215,6 +215,16 @@
       app.lastPhase = g.phase;
     }
     if (g.phase === 'ko' && g.endT === 40) A.music.jingle(g.matchPoint ? 'victory' : 'ko');
+    const frz = g.freeze > 0; // duck the music under the super activation sting
+    if (frz !== !!app.superDuck) { app.superDuck = frz; A.music.duck(frz); }
+  }
+  // SP button / I key turn into an obvious glowing SUPER state while the player's meter is full
+  const spBtn = document.getElementById('btn-special');
+  function superButton() {
+    const g = app.game, on = !!(g && app.screen === 'fight' && g.phase !== 'over' && g.f[0].superReady);
+    if (on !== !!app.superOn) { app.superOn = on; spBtn.classList.toggle('super', on); spBtn.textContent = on ? 'SUPER' : 'SP'; }
+    if (app.superDuck && !(g && app.screen === 'fight')) { app.superDuck = false; A.music.duck(false); }
+    A.superKeyHint = document.body.classList.contains('touch') ? '' : 'PRESS I: SUPER!';
   }
   function loop(now) {
     acc = Math.min(acc + (now - last), 100); last = now;
@@ -230,6 +240,7 @@
         musicHooks(g);
       }
     }
+    superButton();
     document.body.classList.toggle('cine', app.screen === 'fight' && (app.introT > 0 || app.vsT > 0));
     if (app.game && app.screen === 'fight' && app.introT > 0) drawIntro(ctx, app.game, INTRO_FRAMES - app.introT);
     else if (app.game && app.screen === 'fight' && app.vsT > 0) drawVs(ctx, app.game, VS_FRAMES - app.vsT);
